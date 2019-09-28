@@ -6,10 +6,10 @@ import 'package:stanza/src/postgres_credentials.dart';
 import 'package:stanza/src/query_result.dart';
 
 
-class Transaction {
+class _Transaction {
   final pg.PostgreSQLExecutionContext ctx;
 
-  Transaction(this.ctx);
+  _Transaction(this.ctx);
 
   Future<QueryResult<T>> execute<T>(Query query) async {
     var result = await ctx.mappedResultsQuery(query.statement(), substitutionValues: query.substitutionValues);
@@ -18,10 +18,10 @@ class Transaction {
   }
 }
 
-typedef Future<QueryResult<T>> QueryBlock<T>(Transaction tx);
+typedef Future<QueryResult<T>> QueryBlock<T>(_Transaction tx);
 
 
-class DbConnection {
+class Stanza {
 
 pg.PostgreSQLConnection _connection;
 
@@ -56,7 +56,7 @@ Future<QueryResult<T>> executeTransaction<T>(QueryBlock queryBlock, {bool autoRe
     );
     await _connection.open();
     QueryResult<T> result = await _connection.transaction((ctx) async {
-      return await queryBlock(Transaction(ctx));
+      return await queryBlock(_Transaction(ctx));
     });
     if (autoRelease) {
       await _connection.close();
@@ -69,11 +69,11 @@ Future release() async {
   if (!_connection.isClosed) await _connection.close();
 } 
 
-DbConnection._();
+Stanza._();
 
-factory DbConnection.connect() {
+factory Stanza.connect() {
   if (_creds == null) throw QueryException('Database has not been initialized.');
-  return DbConnection._();
+  return Stanza._();
 }
 
 static void initialize(PostgresCredentials creds, {int maxConnections: 100, int timeout: 600}) {
