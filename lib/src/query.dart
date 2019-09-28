@@ -5,7 +5,6 @@ import 'package:stanza/src/value_substitution.dart';
 
 abstract class Query {
 
-  String _tableName;
   Table _table;
 
   var _substitutionValues = Map<String, dynamic>();

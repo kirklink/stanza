@@ -1,6 +1,5 @@
 import 'package:bottom_line/jsonable.dart' as bl;
 
-import 'package:stanza/src/exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';

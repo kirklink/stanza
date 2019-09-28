@@ -1,7 +1,6 @@
 import 'package:stanza/src/exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
-import 'package:stanza/src/query_clause.dart';
 import 'package:stanza/src/shared/where_operations.dart';
 import 'package:stanza/src/shared/where_package.dart';
 
