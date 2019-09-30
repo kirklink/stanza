@@ -34,20 +34,20 @@ class Stanza {
   Stanza._(pg.PostgreSQLConnection this._connection, pl.Pool this._pool);
 
   factory Stanza(PostgresCredentials creds, {int maxConnections: 25, int timeout: 600}) {
-    final id = '${creds.host}:${creds.port}|${creds.db}';
-    var connection = pg.PostgreSQLConnection(
-        creds.host,
-        creds.port,
-        creds.db,
-        username: creds.username,
-        password: creds.password);
+    final id = '${creds.host}:${creds.port}|${creds.db}|${creds.username}';
     if (!_connections.containsKey(id)) {
-      _connections[id] = Stanza._(
-        connection,
-        pl.Pool(maxConnections, timeout: Duration(seconds: timeout))
+      _connections[id] = StanzaConnection(
+        creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout))
       );
     }
-    return _connections[id];
+    var cache = _connections[id];
+    var connection = pg.PostgreSQLConnection(
+        cache.creds.host,
+        cache.creds.port,
+        cache.creds.db,
+        username: cache.creds.username,
+        password: cache.creds.password);
+    return Stanza._(connection, cache.pool);
   }
 
 
@@ -82,9 +82,6 @@ class Stanza {
   } 
 
 
-  static Map<String, Stanza> _connections = Map<String, Stanza>();
-  // static pl.Pool _pool;
-  // static PostgresCredentials _creds;
-
+  static Map<String, StanzaConnection> _connections = Map<String, StanzaConnection>();
 
 }
