@@ -7,6 +7,7 @@ import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/select/group_by_clause.dart';
 import 'package:stanza/src/select/order_by_clause.dart';
 import 'package:stanza/src/select/limit_clause.dart';
+import 'package:stanza/src/select/offset_clause.dart';
 
 class SelectQuery extends Query with WhereClause {
 
@@ -14,6 +15,7 @@ class SelectQuery extends Query with WhereClause {
   OrderByClause _orderByClause = OrderByClause();
   GroupByClause _groupByClause;
   LimitClause _limitClause;
+  OffsetClause _offsetClause;
 
   SelectQuery(Table table) : super(table);
 
@@ -23,19 +25,22 @@ class SelectQuery extends Query with WhereClause {
     var table = tableName ?? '';
     var where = whereClauses ?? '';
     var limit = _limitClause?.clause ?? '';
+    var offset = _offsetClause?.clause ?? '';
     var group = _groupByClause?.clause ?? '';
     var order = _orderByClause?.clause ?? '';
     var wbr = br;
     var gbr = br;
     var obr = br;
     var lbr = br;
+    var fbr = br;
     if (pretty) {
       if (where == '') wbr = '';
       if (group == '') gbr = '';
       if (order == '') obr = '';
       if (limit == '') lbr = '';
+      if (offset == '') fbr = '';
     }
-    var query = "SELECT $select FROM $table$wbr$where$gbr$group$obr$order$lbr$limit;";
+    var query = "SELECT $select FROM $table$wbr$where$gbr$group$obr$order$lbr$limit$fbr$offset;";
     return query;
   }
 
@@ -62,6 +67,11 @@ class SelectQuery extends Query with WhereClause {
     _limitClause = LimitClause(i);
   }
 
+  void offset(int i) {
+    if (_offsetClause != null) throw QueryException('Cannot have more than one offset clause in a query.');
+    _offsetClause = OffsetClause(i);
+  }
+
   SelectQuery fork() {
     var q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
@@ -69,6 +79,7 @@ class SelectQuery extends Query with WhereClause {
     q._orderByClause = _orderByClause.clone();
     q._groupByClause = _groupByClause?.clone();
     q._limitClause = _limitClause?.clone();
+    q._offsetClause = _offsetClause?.clone();
     return q;
   }
 
