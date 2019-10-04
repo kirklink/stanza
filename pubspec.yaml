@@ -10,6 +10,7 @@ dependencies:
   postgres: '^2.0.0-dev1.0'
   pool: '^1.4.0'
   bottom_line: '^0.0.3'
+  reflectable: '^2.1.0'
 dev_dependencies:
   json_serializable: '^3.0.0'
   build_runner: any

@@ -1,12 +1,14 @@
+import 'package:reflectable/reflectable.dart';
 
-class DbField {
+
+class StanzaField {
   final String name;
   final bool exclude;
   final bool readOnly;
-  const DbField({this.name, this.exclude, this.readOnly});
+  const StanzaField({this.name, this.exclude, this.readOnly});
 }
 
-class DbTable {
+class StanzaTable extends Reflectable {
   final String name;
-  const DbTable({this.name});
+  const StanzaTable({this.name}) : super(metadataCapability);
 }

@@ -28,7 +28,7 @@ class Table<T> {
     // Look for a provided table name in class metadata
     for (var i in t.metadata) {
       var j = i.reflectee;
-      if (j is DbTable) {
+      if (j is StanzaTable) {
         tableName = j.name;
       }
     }
@@ -62,7 +62,7 @@ class Table<T> {
       for (var im in decMirror.metadata) {
         var r = im.reflectee;
         // Look at DbField metadata
-        if (r is DbField) {
+        if (r is StanzaField) {
           // Get the db field name
           dbField = r.name;
           // Exclude if appropriate
