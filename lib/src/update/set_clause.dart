@@ -1,5 +1,3 @@
-import 'dart:mirrors';
-
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/value_substitution.dart';
@@ -43,9 +41,9 @@ class SetValue<T> {
 
 
   UpdateQuery _attach(dynamic value) {
-    var sub = ValueSub(field.dbName, value);
+    var sub = ValueSub(field.name, value);
     src.addSubstitution(sub);
-    parent._clauses[field.dbName] = sub.token;
+    parent._clauses[field.name] = sub.token;
     return src;
   }
 
@@ -73,13 +71,13 @@ class SetValue<T> {
     return _attach(boolean);
   }
 
-  UpdateQuery entity(T entity) {
-    var meer = reflect(entity).getField(Symbol(field.appName)).reflectee;
-    return _attach(meer);
-  }
+  // UpdateQuery entity(T entity) {
+  //   var meer = reflect(entity).getField(Symbol(field.appName)).reflectee;
+  //   return _attach(meer);
+  // }
 
-  UpdateQuery any(dynamic d) {
-    return _attach(d);
+  UpdateQuery any(dynamic value) {
+    return _attach(value);
   }
 
 }

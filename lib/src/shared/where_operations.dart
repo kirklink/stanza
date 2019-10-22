@@ -12,7 +12,7 @@ class WhereOperation {
   WhereOperation(this._where);
 
   Query _attach({ValueSub substitution}) {
-    var fieldName = _where.field.dbNameQualified;
+    var fieldName = _where.field.qualifiedName;
     var open = _where.openBracket ? '(' : '';
     var close = _where.closeBracket ? ')' : '';
     var caseOpen = '';
@@ -55,35 +55,35 @@ class WhereOperation {
 
   Query equalTo(num number) {
     _comparison = '=';
-    var sub = ValueSub(_where.field.appName, number);
+    var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
   Query greaterThan(num number) {
     _comparison = '>';
-    var sub = ValueSub(_where.field.appName, number);
+    var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
   Query greaterThanOrEqualTo(num number) {
     _comparison = '>=';
-    var sub = ValueSub(_where.field.appName, number);
+    var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
   Query lessThan(num number) {
     _comparison = '<';
-    var sub = ValueSub(_where.field.appName, number);
+    var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
   Query lessThanOrEqualTo(num number) {
     _comparison = '<=';
-    var sub = ValueSub(_where.field.appName, number);
+    var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }

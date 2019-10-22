@@ -3,6 +3,7 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/postgres_credentials.dart';
 import 'package:stanza/src/query_result.dart';
+import 'package:stanza/src/table.dart';
 
 
 class _Transaction {
@@ -12,7 +13,7 @@ class _Transaction {
 
   Future<QueryResult<T>> execute<T>(Query query) async {
     var result = await ctx.mappedResultsQuery(query.statement(), substitutionValues: query.substitutionValues);
-    var queryResult = QueryResult<T>(result);
+    var queryResult = QueryResult<T>(result, query.table);
     return queryResult;
   }
 }
@@ -53,12 +54,12 @@ class Stanza {
 
   Future<QueryResult<T>> execute<T>(Query query, {bool autoRelease: true}) {
     return _pool.withResource(() async {
-      await _connection.open();
-      var result = await _connection.mappedResultsQuery(query.statement(), substitutionValues: query.     substitutionValues);
+      if (_connection.isClosed) await _connection.open();
+      var result = await _connection.mappedResultsQuery(query.statement(), substitutionValues: query.substitutionValues);
       if (autoRelease) {
         await _connection.close();
       }
-      var queryResult = QueryResult<T>(result);
+      var queryResult = QueryResult<T>(result, query.table);
       return queryResult;
     });
     
@@ -66,7 +67,7 @@ class Stanza {
 
   Future<QueryResult<T>> executeTransaction<T>(QueryBlock queryBlock, {bool autoRelease: true}) {
     return _pool.withResource(() async {
-      await _connection.open();
+      if (_connection.isClosed) await _connection.open();
       QueryResult<T> result = await _connection.transaction((ctx) async {
         return await queryBlock(_Transaction(ctx));
       });

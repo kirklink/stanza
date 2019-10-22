@@ -8,7 +8,7 @@ class OrderByClause implements QueryClause {
 
   void add(Field field, {bool descending: false}) {
     var direction = descending ? ' DESC' : ' ASC';
-    _clauses.add(field.dbNameQualified + direction);
+    _clauses.add(field.sql + direction);
   }
 
   String get clause {

@@ -1,5 +1,3 @@
-import 'package:bottom_line/jsonable.dart' as bl;
-
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
@@ -15,20 +13,19 @@ class InsertQuery extends Query {
   @override
   String statement({bool pretty: false}) {
     var br = pretty ? '\n' : ' ';
-    var table = tableName ?? '';
+    var tableName = table?.$name ?? '';
     var insert = _insert.clause ?? '';
     var ibr = br;
-    var query = "INSERT INTO $table${ibr}$insert;";
+    var query = "INSERT INTO $tableName${ibr}$insert;";
     return query;
   }
 
   void insert(Field field, dynamic value) {
-    _insert.insert(field.dbName, value, this);
+    _insert.insert(field.name, value, this);
   }
 
-  void insertEntity(bl.Jsonable entity) {
-    var x = table.jsonToDbAdapter(entity.toJson());
-    x.forEach((k, v) {
+  void insertEntity(Map<String, dynamic> entity) {
+    entity.forEach((k, v) {
       _insert.insert(k, v, this);
     });
   }

@@ -1,7 +1,7 @@
 class StanzaEntity {  
   final String name;  
   final bool snakeCase;   
-  const StanzaEntity(this.name, {this.snakeCase: false}) : assert(name != null);
+  const StanzaEntity({this.name, this.snakeCase: false});
 }
 
 class StanzaField {

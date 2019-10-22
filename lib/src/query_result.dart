@@ -1,6 +1,4 @@
-import 'dart:mirrors';
 import 'package:stanza/src/table.dart';
-
 
 class Result<T> {
   final T value;
@@ -15,10 +13,11 @@ class Result<T> {
 
 class QueryResult<T> {
   final List<Map<String, Map<String, dynamic>>> raw;
+  Table _table;
 
   List<Result<T>> _cachedList;
 
-  QueryResult(this.raw);
+  QueryResult(this.raw, this._table);
 
 
   bool get isEmpty => raw.isEmpty;
@@ -27,16 +26,10 @@ class QueryResult<T> {
   List<Result<T>> all() {
     var list = List<Result<T>>();
     if (_cachedList != null) return _cachedList;
-    var table = Table<T>();
-    var ref = reflectClass(T);
     T result;
     for (var row in raw) {
-      var value = row[table.dbName];
-      if (value != null) {
-        result = ref.newInstance(Symbol('fromJson'), [table.dbToJsonAdapter(value)]).reflectee;  
-      } else {
-        result = ref.newInstance(Symbol(''), []).reflectee;
-      }
+      var value = row[_table.$name];
+      result = _table.fromDb(value);
       
       var aggregates = row[null];
       var container = Result<T>(result, aggregates);

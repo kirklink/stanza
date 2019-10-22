@@ -1,8 +1,8 @@
+import 'package:stanza/annotations.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/update/set_clause.dart';
-import 'package:stanza/src/table.dart';
 
 class UpdateQuery extends Query with WhereClause {
 
@@ -13,7 +13,7 @@ class UpdateQuery extends Query with WhereClause {
   @override
   String statement({bool pretty: false}) {
     var br = pretty ? '\n' : ' ';
-    var table = tableName ?? '';
+    var tableName = table?.$name ?? '';
     var where = whereClauses ?? '';
     var sett = _setClause.clause ?? '';
     var sbr = br;
@@ -21,7 +21,7 @@ class UpdateQuery extends Query with WhereClause {
     if (pretty) {
       if (where == '') wbr = '';
     }
-    var query = "UPDATE $table${sbr}SET $sett$wbr$where;";
+    var query = "UPDATE $tableName${sbr}SET $sett$wbr$where;";
     return query;
   }
 

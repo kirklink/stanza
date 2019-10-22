@@ -1,2 +1,3 @@
 export 'src/annotations/annotations.dart';
-export 'src/annotations/field_wrapper.dart';
+export 'src/field.dart';
+export 'src/table.dart';

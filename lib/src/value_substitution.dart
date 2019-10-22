@@ -5,9 +5,6 @@ class ValueSub {
   String _token;
 
   ValueSub(String name, dynamic value) {
-    // _key = name + '_' + count.toString();
-    // _sub = '@' + _key;
-
     _key = name + '_' + value.hashCode.toString();
     _token = '@' + name + '_' + value.hashCode.toString();
     _value = value;

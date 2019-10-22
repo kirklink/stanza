@@ -1,6 +1,6 @@
+import 'package:stanza/annotations.dart';
 import 'package:stanza/src/exception.dart';
 import 'package:stanza/src/query.dart';
-import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
 import 'package:stanza/src/shared/where_clause.dart';
@@ -8,6 +8,7 @@ import 'package:stanza/src/select/group_by_clause.dart';
 import 'package:stanza/src/select/order_by_clause.dart';
 import 'package:stanza/src/select/limit_clause.dart';
 import 'package:stanza/src/select/offset_clause.dart';
+import 'package:stanza/src/table.dart';
 
 class SelectQuery extends Query with WhereClause {
 
@@ -21,26 +22,22 @@ class SelectQuery extends Query with WhereClause {
 
   String statement({bool pretty: false}) {
     var br = pretty ? '\n' : ' ';
-    var select = _selectClause?.clause ?? '';
-    var table = tableName ?? '';
-    var where = whereClauses ?? '';
-    var limit = _limitClause?.clause ?? '';
-    var offset = _offsetClause?.clause ?? '';
-    var group = _groupByClause?.clause ?? '';
-    var order = _orderByClause?.clause ?? '';
-    var wbr = br;
-    var gbr = br;
-    var obr = br;
-    var lbr = br;
-    var fbr = br;
-    if (pretty) {
-      if (where == '') wbr = '';
-      if (group == '') gbr = '';
-      if (order == '') obr = '';
-      if (limit == '') lbr = '';
-      if (offset == '') fbr = '';
-    }
-    var query = "SELECT $select FROM $table$wbr$where$gbr$group$obr$order$lbr$limit$fbr$offset;";
+    var select = _selectClause?.clause;
+    var where = whereClauses;
+    var limit = _limitClause?.clause;
+    var offset = _offsetClause?.clause;
+    var group = _groupByClause?.clause;
+    var order = _orderByClause?.clause;
+    var buf = StringBuffer();
+    if (select != null) buf.writeAll(['SELECT ', select]);
+    if (table != null) buf.writeAll([br, 'FROM ', table.$name]);
+    if (where != null) buf.writeAll([br, where]);
+    if (group != null) buf.writeAll([br, group]);
+    if (order != null) buf.writeAll([br, order]);
+    if (limit != null) buf.writeAll([br, limit]);
+    if (offset != null) buf.writeAll([br, offset]);
+    buf.write(';');
+    var query = buf.toString();
     return query;
   }
 

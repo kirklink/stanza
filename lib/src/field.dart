@@ -1,52 +1,59 @@
-import 'package:stanza/src/name_converter.dart';
-
-
 class Field {
   
-  final NameConverter _name;
-  final String _table;
+  final String _tableName;
+  final String _fieldName;
   String _operation;
-  String _asName;
+  String _newName;
 
-  String get appName => _name.app;
-  String get jsonName => _name.json;
-  String get dbNameQualified {
-    var name = _table + '.' + _name.db;
-    if (_operation != null) name = '$_operation($name)';
-    if (_asName != null) name = '$name AS $_asName';
-    return name;
-  }
-  String get dbName {
-    var name = _name.db;
-    if (_operation != null) name = '$_operation($name)';
-    if (_asName != null) name = '$name AS $_asName';
-    return name;
-  }
-
-  Field(this._name, this._table);
+  Field(this._tableName, this._fieldName);
   
-  void sum() {
+  String get sql {
+    var buf = StringBuffer();
+    if (_operation != null) buf.write("${_operation}(");
+    buf.write("$_tableName.$_fieldName");
+    if (_operation != null) buf.write(")");
+    if (_newName != null) buf.write(" AS $_newName");
+    return buf.toString();
+  }
+
+  String get name => _fieldName;
+
+  String get qualifiedName => "$_tableName.$_fieldName";
+  
+  Field rename(String newName) {
+    _newName = newName;
+    return this;
+  } 
+  
+  Field sum() {
     _operation = 'SUM';
+    return this;
   }
 
-  void avg() {
+  Field avg() {
     _operation = 'AVG';
+    return this;
   }
 
-  void max() {
+  Field count() {
+    _operation = 'COUNT';
+    return this;
+  }
+
+  Field max() {
     _operation = 'MAX';
+    return this;
   }
 
-  void min() {
+  Field min() {
     _operation = 'MIN';
+    return this;
   }
-
-  void aggregate(String operation) {
+  
+  
+  Field aggregate(String operation) {
     _operation = operation;
-  }
-
-  void asName(String asName) {
-    _asName = asName;
-  }
+    return this;
+  } 
 
 }

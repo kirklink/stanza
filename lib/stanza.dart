@@ -3,4 +3,3 @@ export 'src/update_query.dart';
 export 'src/insert_query.dart';
 export 'src/stanza.dart';
 export 'src/postgres_credentials.dart';
-export 'src/table.dart';
