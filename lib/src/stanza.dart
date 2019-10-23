@@ -3,7 +3,6 @@ import 'package:postgres/postgres.dart' as pg;
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/postgres_credentials.dart';
 import 'package:stanza/src/query_result.dart';
-import 'package:stanza/src/table.dart';
 
 
 class _Transaction {
@@ -21,68 +20,72 @@ class _Transaction {
 typedef Future<QueryResult<T>> QueryBlock<T>(_Transaction tx);
 
 class StanzaConnection {
-  final PostgresCredentials creds;
-  final pl.Pool pool;
+  
+  pl.Pool _pool;
+  pl.PoolResource _resource;
+  pg.PostgreSQLConnection _connection;
 
-  StanzaConnection(this.creds, this.pool);
+  StanzaConnection(this._pool, this._connection);
+
+  Future<QueryResult<T>> execute<T>(Query query, {bool autoClose: true}) async {
+    if (_resource == null) _resource = await _pool.request();
+    if (_connection.isClosed) await _connection.open();
+    var result = await _connection.mappedResultsQuery(query.statement(), substitutionValues: query.substitutionValues);
+    if (autoClose) {
+      await _connection.close();
+      _resource.release();
+    }
+    var queryResult = QueryResult<T>(result, query.table);
+    return queryResult;
+  }
+
+  Future<QueryResult<T>> executeTransaction<T>(QueryBlock queryBlock, {bool autoClose: true}) async {
+    if (_resource == null) _resource = await _pool.request();
+    if (_connection.isClosed) await _connection.open();
+    QueryResult<T> result = await _connection.transaction((ctx) async {
+      return await queryBlock(_Transaction(ctx));
+    });
+    if (autoClose) {
+      await _connection.close();
+      _resource.release();
+    }
+    return result;
+  }
+
+  Future close() async {
+    if (!_connection.isClosed) await _connection.close();
+    _resource.release();
+  } 
 }
 
 class Stanza {
 
-  pg.PostgreSQLConnection _connection;
-  pl.Pool _pool;
+  final PostgresCredentials _creds;
+  final pl.Pool _pool;
 
-  Stanza._(pg.PostgreSQLConnection this._connection, pl.Pool this._pool);
+  Stanza._(this._creds, this._pool);
 
   factory Stanza(PostgresCredentials creds, {int maxConnections: 25, int timeout: 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}|${creds.username}';
     if (!_connections.containsKey(id)) {
-      _connections[id] = StanzaConnection(
+      _connections[id] = Stanza._(
         creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout))
       );
     }
     var cache = _connections[id];
+    return cache;
+  }
+
+  Future<StanzaConnection> connection() async {
     var connection = pg.PostgreSQLConnection(
-        cache.creds.host,
-        cache.creds.port,
-        cache.creds.db,
-        username: cache.creds.username,
-        password: cache.creds.password);
-    return Stanza._(connection, cache.pool);
+        _creds.host,
+        _creds.port,
+        _creds.db,
+        username: _creds.username,
+        password: _creds.password);
+    return StanzaConnection(_pool, connection);
   }
 
-
-  Future<QueryResult<T>> execute<T>(Query query, {bool autoRelease: true}) {
-    return _pool.withResource(() async {
-      if (_connection.isClosed) await _connection.open();
-      var result = await _connection.mappedResultsQuery(query.statement(), substitutionValues: query.substitutionValues);
-      if (autoRelease) {
-        await _connection.close();
-      }
-      var queryResult = QueryResult<T>(result, query.table);
-      return queryResult;
-    });
-    
-  }
-
-  Future<QueryResult<T>> executeTransaction<T>(QueryBlock queryBlock, {bool autoRelease: true}) {
-    return _pool.withResource(() async {
-      if (_connection.isClosed) await _connection.open();
-      QueryResult<T> result = await _connection.transaction((ctx) async {
-        return await queryBlock(_Transaction(ctx));
-      });
-      if (autoRelease) {
-        await _connection.close();
-      }
-      return result;
-    });
-  }
-
-  Future release() async {
-    if (!_connection.isClosed) await _connection.close();
-  } 
-
-
-  static Map<String, StanzaConnection> _connections = Map<String, StanzaConnection>();
+  static Map<String, Stanza> _connections = Map<String, Stanza>();
 
 }

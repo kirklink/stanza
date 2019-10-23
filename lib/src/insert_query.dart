@@ -1,3 +1,4 @@
+import 'package:stanza/src/exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
@@ -24,8 +25,13 @@ class InsertQuery extends Query {
     _insert.insert(field.name, value, this);
   }
 
-  void insertEntity(Map<String, dynamic> entity) {
-    entity.forEach((k, v) {
+  void insertEntity<T>(T entity) {
+    if (table.$type != T) {
+      var msg = 'Mismatch. The entity is Type $T. The table is type ${table.$type}';
+      throw QueryException(msg);
+    }
+    var map = table.toDb(entity);
+    map.forEach((k, v) {
       _insert.insert(k, v, this);
     });
   }

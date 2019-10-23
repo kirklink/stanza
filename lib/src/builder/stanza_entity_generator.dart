@@ -20,13 +20,14 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
 
     // (element as ClassElement).interfaces.forEach(print);
     
-    // // Throw if a to
-    // if ((element as ClassElement).constructors.indexWhere((e) => e.name == 'fromDb') == -1) {
-    //   var buf = StringBuffer();
-    //   buf.writeln('\nThe StanzaEntity class "${element.name}" must have a factory constructor called "fromDb".');
-    //   buf.writeln('Here you go: factory ${element.name}.fromDb(Map<String, dynamic> map) => \$${element.name}Entity().fromDb(map);');
-    //   throw(QueryException(buf.toString()));
-    // };
+    var $table = (element as ClassElement).getField('\$table');
+    if ($table == null || !$table.isStatic) {
+      var buf = StringBuffer();
+      var tableClass = "${element.name}Table";
+      buf.writeln('\nThe StanzaEntity class "${element.name}" must have a static field "\$table".');
+      buf.writeln('Add this to ${element.name}: static _\$$tableClass \$table = _\$$tableClass();');
+      throw QueryException(buf.toString());
+    }
 
     var fileBuffer = StringBuffer();
     // var fieldsBuffer = StringBuffer();
@@ -48,7 +49,8 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     // var fieldsClassName = "\$${element.name}Fields";
     // fieldsBuffer.writeln("class ${fieldsClassName} {");
     tableBuffer.writeln("class _\$${element.name}Table extends Table<${element.name}> {");
-    tableBuffer.writeln("final String \$name = '$tableName';\n");
+    tableBuffer.writeln("final String \$name = '$tableName';");
+    tableBuffer.writeln("final Type \$type = ${element.name};\n");
     // tableBuffer.writeln("final $fieldsClassName fields = $fieldsClassName();\n");
     var fromDbBuffer = StringBuffer();
     var toDbBuffer = StringBuffer();
