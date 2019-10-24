@@ -1,4 +1,4 @@
-import 'package:stanza/src/exception.dart';
+import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/value_substitution.dart';
 import 'package:stanza/src/table.dart';
 
@@ -15,7 +15,7 @@ abstract class Query {
   Map<String, dynamic> get substitutionValues => _substitutionValues;
 
   String statement({bool pretty: false}) {
-    throw QueryException('Statement is not implemented.');
+    throw StanzaException('Statement is not implemented.');
   }
 
   String toString() {
@@ -34,7 +34,7 @@ abstract class Query {
 
 
   Query fork() {
-    throw QueryException('Clone is not implemented.');
+    throw StanzaException('Clone is not implemented.');
   }
 
 

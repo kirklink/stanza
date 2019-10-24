@@ -4,8 +4,8 @@ import 'package:build/src/builder/build_step.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:recase/recase.dart';
 
-import 'package:stanza/src/annotations/annotations.dart';
-import 'package:stanza/src/exception.dart';
+import 'package:stanza/annotations.dart';
+import 'package:stanza_builder/src/stanza_builder_exception.dart';
 
 final _checkForStanzaField = const TypeChecker.fromRuntime(StanzaField);
 
@@ -26,7 +26,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       var tableClass = "${element.name}Table";
       buf.writeln('\nThe StanzaEntity class "${element.name}" must have a static field "\$table".');
       buf.writeln('Add this to ${element.name}: static _\$$tableClass \$table = _\$$tableClass();');
-      throw QueryException(buf.toString());
+      throw StanzaBuilderException(buf.toString());
     }
 
     var fileBuffer = StringBuffer();

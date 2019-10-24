@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      stanza_builder|stanza_entity:
+        enabled: true
+
+builders:
+  table:
+    target: ":stanza_builder"
+    import: "package:stanza_builder/src/stanza_builder.dart"
+    builder_factories: ["StanzaBuilder"]
+    build_extensions: {".dart": [".stanza.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]

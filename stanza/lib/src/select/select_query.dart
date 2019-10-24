@@ -1,5 +1,4 @@
-import 'package:stanza/annotations.dart';
-import 'package:stanza/src/exception.dart';
+import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
@@ -51,7 +50,7 @@ class SelectQuery extends Query with WhereClause {
   }
 
   void groupBy(List<Field> fields) {
-    if (_groupByClause != null) throw QueryException('Cannot have more than one group by clause in a query.');
+    if (_groupByClause != null) throw StanzaException('Cannot have more than one group by clause in a query.');
     _groupByClause = GroupByClause(fields);
   }
 
@@ -60,12 +59,12 @@ class SelectQuery extends Query with WhereClause {
   }
 
   void limit(int i) {
-    if (_limitClause != null) throw QueryException('Cannot have more than one limit clause in a query.');
+    if (_limitClause != null) throw StanzaException('Cannot have more than one limit clause in a query.');
     _limitClause = LimitClause(i);
   }
 
   void offset(int i) {
-    if (_offsetClause != null) throw QueryException('Cannot have more than one offset clause in a query.');
+    if (_offsetClause != null) throw StanzaException('Cannot have more than one offset clause in a query.');
     _offsetClause = OffsetClause(i);
   }
 

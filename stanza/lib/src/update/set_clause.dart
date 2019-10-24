@@ -2,7 +2,7 @@ import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/value_substitution.dart';
 import 'package:stanza/src/query_clause.dart';
-import 'package:stanza/src/update_query.dart';
+import 'package:stanza/src/update/update_query.dart';
 
 
 class SetClause implements QueryClause {

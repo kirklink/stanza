@@ -1,5 +1,5 @@
-import 'package:stanza/annotations.dart';
 import 'package:stanza/src/query.dart';
+import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/update/set_clause.dart';

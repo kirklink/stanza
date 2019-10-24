@@ -1,4 +1,4 @@
-import 'package:stanza/src/exception.dart';
+import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
@@ -28,7 +28,7 @@ class InsertQuery extends Query {
   void insertEntity<T>(T entity) {
     if (table.$type != T) {
       var msg = 'Mismatch. The entity is Type $T. The table is type ${table.$type}';
-      throw QueryException(msg);
+      throw StanzaException(msg);
     }
     var map = table.toDb(entity);
     map.forEach((k, v) {
