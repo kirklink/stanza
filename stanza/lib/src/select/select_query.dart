@@ -27,8 +27,9 @@ class SelectQuery extends Query with WhereClause {
     var offset = _offsetClause?.clause;
     var group = _groupByClause?.clause;
     var order = _orderByClause?.clause;
+    
     var buf = StringBuffer();
-    if (select != null) buf.writeAll(['SELECT ', select]);
+    buf.writeAll(['SELECT ', select]);
     if (table != null) buf.writeAll([br, 'FROM ', table.$name]);
     if (where != null) buf.writeAll([br, where]);
     if (group != null) buf.writeAll([br, group]);

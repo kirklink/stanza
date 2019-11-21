@@ -23,13 +23,16 @@ class QueryResult<T> {
   bool get isEmpty => raw.isEmpty;
   bool get isNotEmpty => raw.isNotEmpty;
 
-  List<Result<T>> all() {
+  List<Result<T>> get all {
     var list = List<Result<T>>();
     if (_cachedList != null) return _cachedList;
     T result;
     for (var row in raw) {
       var value = row[_table.$name];
-      result = _table.fromDb(value);
+
+      if (value != null) {
+        result = _table.fromDb(value);
+      }
       
       var aggregates = row[null];
       var container = Result<T>(result, aggregates);
@@ -39,23 +42,23 @@ class QueryResult<T> {
     return _cachedList;
   }
 
-  Result<T> first() {
-    var all = this.all();
+  Result<T> get first {
+    var all = this.all;
     if (all.length == 0) return null;
-    return this.all()[0];
+    return this.all[0];
   }
 
-  List<T> entitiesOnly() {
+  List<T> get entities {
     var results = List<T>();
-    for (var item in this.all()) {
+    for (var item in this.all) {
       results.add(item.value);
     }
     return results;
   }
 
-  List<Map<String, dynamic>> aggregatesOnly() {
+  List<Map<String, dynamic>> get aggregates {
     var results = List<Map<String, dynamic>>();
-    for (var item in this.all()) {
+    for (var item in this.all) {
       results.add(item.aggregate);
     }
     return results;

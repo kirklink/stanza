@@ -15,7 +15,7 @@ mixin WhereClause on Query {
   List<String> _clauses = [];
   int bracketDepth = 0;
 
-  String get whereClauses => _clauses.join(' ');
+  String get whereClauses => _clauses.length > 0 ? _clauses.join(' ') : null;
 
   WhereClauseCloner cloner() {
     return WhereClauseCloner(List.from(_clauses), bracketDepth);

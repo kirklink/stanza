@@ -12,7 +12,9 @@ class SelectClause<T> implements QueryClause {
   String get clause => '${_fields.join(', ')}';
 
   void add(List<Field> fields) {
-    _fields.addAll(fields.map((f) => f.sql).toList());
+    for (var f in fields) {
+      _fields.add(f.sql);
+    }
   }
 
   void star(Table table) {
