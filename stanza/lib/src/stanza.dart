@@ -66,7 +66,7 @@ class Stanza {
   Stanza._(this._creds, this._pool);
 
   factory Stanza(PostgresCredentials creds, {int maxConnections: 25, int timeout: 600}) {
-    final id = '${creds.host}:${creds.port}|${creds.db}|${creds.username}';
+    final id = '${creds.host}:${creds.port}|${creds.db}';
     if (!_connections.containsKey(id)) {
       _connections[id] = Stanza._(
         creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout))

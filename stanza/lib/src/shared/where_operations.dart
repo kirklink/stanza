@@ -129,15 +129,22 @@ class WhereOperation {
   }
 
   Query isBefore(DateTime date) {
-    _comparable = '<';
+    _comparison = '<';
     _comparable = '${date.toString()}::date';
     return _attach();
   }
 
   Query isAfter(DateTime date) {
-    _comparable = '>';
+    _comparison = '>';
     _comparable = '${date.toString()}::date';
     return _attach();
+  }
+
+  Query isOn(DateTime date) {
+    _comparison = '=';
+    _comparable = '${date.toString()}::date';
+    return _attach();
+
   }
 
 
