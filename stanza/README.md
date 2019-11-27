@@ -163,7 +163,7 @@ The API for building queries is much what one would expect and there are several
 * InsertQuery
   * `var insertQuery = InsertQuery(table)`
   * `..insert(table.fieldName, value)` -> insert a dynamic value into a field; this is composable and multiple fields can be inserted into the database
-  * OR `..insertEntity<type>(entity)` -> will insert a complete model class and providing the type will ensure that only an intended class type is inserted
+  * OR `..insertEntity<Type>(entity)` -> will insert a complete model class and providing the type will ensure that only an intended class type is inserted
 * UpdateQuery
   * `var updateQuery = UpdateQuery(table)`
   * `..column(table.fieldName)` -> the target database field
@@ -176,10 +176,7 @@ The API for building queries is much what one would expect and there are several
     * `.boolean(bool boolean)`
   * Or a dynamic value can be provided with:
     * `.any(dynamic value)`
-  * `..where(table.fieldName)` -> specify the conditions where the value(s) should be updated. See the where/and/or clause usage above under SelectQuery
-
-
-
+  * `..where(table.fieldName)` -> specify the conditions where the value(s) should be updated. See the where/and/or clause usage above in the SelectQuery explanation.
 
 
 ### run the query
@@ -187,7 +184,7 @@ When the program is ready to run the query, a connection obtained from Stanza, r
 
 ```dart
 var connection = await Stanza.connection();
-var result = await connection.execute<type>(query);
+var result = await connection.execute<Type>(query);
 ```
 
 The result here is a list of the Dart class being queries and any associated aggregations (covered later). The query results can be accessed in a couple ways:
@@ -208,6 +205,68 @@ for (var animal in result.all) {
 This will print all the animal names to the console.
 
 ### use aggregates in a query
+Fields in a select query can be modified to produce aggregate results. Currently supported are COUNT, SUM, MIN, MAX and AVG. These can also be named AS.
+
+```dart
+var query = SelectQuery(table)
+  ...selectFields([table.name, table.name.count().rename('name_count')]);
+var connection = await Stanza.connection();
+var result = await connection.execute(query);
+for (var r in result.all) {
+  print(r.value.name);
+  print(r.aggregate['name_count']);
+}
+```
+
+This will print out the first name and the count of the first name on separate lines for each result in the list.
+
+The aggregate doesn't need to be renamed and would otherwise be called 'count' by default in this case.
+
 ### execute a query in a transaction
+Queries can be executed in a transaction with a simple and similar syntax.
+
+```dart
+var insertQuery = InsertQuery(table)
+  ..insertEntity<Animal>(animal);
+var selectQuery = SelectQuery(table)
+  ..selectFields([table.id.max()])
+  ..limit(1);
+var conn = await Stanza.connection();
+var result = await conn.executeTransaction<Animal>((tx) async {
+  await tx.execute(insertQuery);
+  return tx.execute(selectQuery);
+});
+print(result.first.id);
+```
+
+This will yield the last entered id since it is executed inside the transaction with the insert query.
+
+### keep a connection open
+By default the database connection is closed after a query is executed but it can be kept open to execute multiple queries using the same connection.
+
+```dart
+var result = await connection.execute<Type>(query, autoClose: false);
+```
+
+Here 'connection' stays alive and it is the user's responsibility to close it. Connections can also be kept alive when used in a transaction.
+
 ### print a query
+During development it may be helpful to see the SQL statement being generated. A query will 'pretty print' to the console including standard SQL formatting with line breaks and capitalization with simply `print(queryName)`.
+
 ### fork a query
+In cases where a query needs to use changing variables it can be partially built and then 'forked' to be completed and used later. As a simple example:
+
+```dart
+var colors = ['black', 'brown', 'green'];
+var query = SelectQuery(table)
+  ..where(table.legs).isGreaterThan(3);
+var connection = await stanza.connection();
+for (var color in colors) {
+  var completeQuery = query.fork()
+    ..and(table.color).matches(color);
+  var result = await connection.execute<Animal>(completeQuery, autoClose: false);
+  print(result.all.length);
+}
+await connection.close();
+```
+This will print the number of results for each color of animal after executing three separate queries, in this case reusing the database connection and closing it manually after.

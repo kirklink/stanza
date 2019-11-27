@@ -2,6 +2,9 @@ import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/value_substitution.dart';
 import 'package:stanza/src/table.dart';
 
+/// The base class to create a Stanza query.
+/// 
+/// The methods of Query are shared with all query implementations.
 abstract class Query {
 
   Table _table;
@@ -17,7 +20,8 @@ abstract class Query {
   String statement({bool pretty: false}) {
     throw StanzaException('Statement is not implemented.');
   }
-
+  
+  /// Print a query to the console.
   String toString() {
     if (_substitutionValues.isEmpty) return 'Type: ${this.runtimeType}\n${statement(pretty: true)}';
     return 'Type: ${this.runtimeType}\n${this.runtimeType}\n${statement(pretty: true)}\nsubstitutionValues: ${_substitutionValues.toString()}';

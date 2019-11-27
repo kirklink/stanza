@@ -53,35 +53,35 @@ class WhereOperation {
     return _attach();
   }
 
-  Query equalTo(num number) {
+  Query isEqualTo(num number) {
     _comparison = '=';
     var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
-  Query greaterThan(num number) {
+  Query isGreaterThan(num number) {
     _comparison = '>';
     var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
-  Query greaterThanOrEqualTo(num number) {
+  Query isGreaterThanOrEqualTo(num number) {
     _comparison = '>=';
     var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
-  Query lessThan(num number) {
+  Query isLessThan(num number) {
     _comparison = '<';
     var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
 
-  Query lessThanOrEqualTo(num number) {
+  Query isLessThanOrEqualTo(num number) {
     _comparison = '<=';
     var sub = ValueSub(_where.field.qualifiedName, number);
     _comparable = sub.token;
