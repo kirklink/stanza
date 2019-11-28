@@ -18,8 +18,6 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       throw('StanzaEntity must only annotate a class.');
     }
 
-    // (element as ClassElement).interfaces.forEach(print);
-    
     var $table = (element as ClassElement).getField('\$table');
     if ($table == null || !$table.isStatic) {
       var buf = StringBuffer();
@@ -30,7 +28,6 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     }
 
     var fileBuffer = StringBuffer();
-    // var fieldsBuffer = StringBuffer();
     var tableBuffer = StringBuffer();
     
     bool snakeCase = annotation.peek('snakeCase')?.boolValue ?? false;
@@ -46,12 +43,9 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     }
     // Otherwise a table name was provided and should be used
 
-    // var fieldsClassName = "\$${element.name}Fields";
-    // fieldsBuffer.writeln("class ${fieldsClassName} {");
     tableBuffer.writeln("class _\$${element.name}Table extends Table<${element.name}> {");
     tableBuffer.writeln("final String \$name = '$tableName';");
     tableBuffer.writeln("final Type \$type = ${element.name};\n");
-    // tableBuffer.writeln("final $fieldsClassName fields = $fieldsClassName();\n");
     var fromDbBuffer = StringBuffer();
     var toDbBuffer = StringBuffer();
     fromDbBuffer.writeln("${element.name} fromDb(Map<String, dynamic> map) {");
@@ -72,15 +66,13 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
         dbName = rc.snakeCase;
       }
       tableBuffer.writeln("Field get ${field.name} => Field('$tableName', '$dbName');");
-      fromDbBuffer.writeln("..${field.name} = map['$dbName']");
+      fromDbBuffer.writeln("..${field.name} = map['$dbName'] as ${field.type.displayName}");
       if (!readOnly)toDbBuffer.writeln("'$dbName': instance.${field.name},");
     }
-    // fieldsBuffer.writeln("}");
     fromDbBuffer.writeln(";}");
     toDbBuffer.writeln("};}");
     tableBuffer.writeAll(['\n', fromDbBuffer, toDbBuffer]);
     tableBuffer.writeln("}");
-    // fileBuffer.writeAll([fieldsBuffer, tableBuffer]);
     fileBuffer.write(tableBuffer);
     return fileBuffer.toString();
   }
