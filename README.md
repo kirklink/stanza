@@ -54,7 +54,7 @@ class Animal {
     @StanzaField(name: 'number_of_legs')
     int legs;
     String color;
-    Datetime createdAt;
+    DateTime createdAt;
 
     Animal();
 

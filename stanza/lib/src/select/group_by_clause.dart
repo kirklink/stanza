@@ -1,9 +1,7 @@
 import 'package:stanza/src/query_clause.dart';
 import 'package:stanza/src/field.dart';
 
-
 class GroupByClause implements QueryClause {
-
   List<String> _fields;
 
   GroupByClause(List<Field> fields) {
@@ -15,5 +13,4 @@ class GroupByClause implements QueryClause {
   GroupByClause clone() {
     return this;
   }
-
 }

@@ -4,22 +4,19 @@ import 'package:stanza/src/value_substitution.dart';
 import 'package:stanza/src/query_clause.dart';
 import 'package:stanza/src/update/update_query.dart';
 
-
 class SetClause implements QueryClause {
-
   var _clauses = Map<String, String>();
-  
+
   String get clause {
     String r = '';
     _clauses.forEach((k, v) {
       r = '$r, $k = $v';
     });
     return r.replaceFirst(', ', '');
-    
   }
 
   SetValue column<T>(Field field, Query q) {
-    return SetValue(field, this, q);
+    return SetValue(field, this, q as UpdateQuery);
   }
 
   SetClause clone() {
@@ -27,21 +24,17 @@ class SetClause implements QueryClause {
     x._clauses = Map.from(_clauses);
     return x;
   }
-
 }
 
 /// The segment of a update query that sets a value on a column.
-/// 
+///
 /// Typesafe options are provided as a convenience but a dynamic value can also be used.
 class SetValue<T> {
-
   final Field field;
   final SetClause parent;
   final UpdateQuery src;
-  
 
   SetValue(this.field, this.parent, this.src);
-
 
   UpdateQuery _attach(dynamic value) {
     var sub = ValueSub(field.name, value);
@@ -89,5 +82,4 @@ class SetValue<T> {
   UpdateQuery any(dynamic value) {
     return _attach(value);
   }
-
 }

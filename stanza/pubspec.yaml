@@ -1,15 +1,16 @@
 name: stanza
 author: "Kirk Linkletter <kirklinkletter@gmail.com>"
 homepage: "https://github.com/kirklink/stanza"
-description: "Library for building PostgreSQL queries."
+description: "Library for building PostgreSQL queries in a Dart-y, type safe syntax that converts between Dart classes and Postgresql tables."
 version: 0.0.9
 environment:
   sdk: '>=2.1.0 <3.0.0'
 dependencies:
-  postgres: '^2.0.0-dev1.0'
+  postgres: '^2.0.0'
   pool: '^1.4.0'
   bottom_line: '^0.0.3'
   recase: '^2.0.1'
 dev_dependencies:
   build_runner: any
+  pedantic: any
   

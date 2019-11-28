@@ -5,16 +5,15 @@ import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/update/set_clause.dart';
 
 /// Base class for an insert query.
-/// 
+///
 /// Takes the generated code table from a [StanzaEntity].
 class UpdateQuery extends Query with WhereClause {
-
   var _setClause = SetClause();
 
   UpdateQuery(Table table) : super(table);
 
   @override
-  String statement({bool pretty: false}) {
+  String statement({bool pretty = false}) {
     var br = pretty ? '\n' : ' ';
     var tableName = table?.$name ?? '';
     var where = whereClauses ?? '';
@@ -40,5 +39,4 @@ class UpdateQuery extends Query with WhereClause {
     q.importWhereClauses(this.cloner());
     return q;
   }
-
 }

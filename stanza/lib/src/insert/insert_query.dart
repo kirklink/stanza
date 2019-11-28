@@ -5,16 +5,15 @@ import 'package:stanza/src/field.dart';
 import 'package:stanza/src/insert/insert_clause.dart';
 
 /// Base class for an insert query.
-/// 
+///
 /// Takes the generated code table from a [StanzaEntity].
 class InsertQuery extends Query {
-
   var _insert = InsertClause();
 
   InsertQuery(Table table) : super(table);
 
   @override
-  String statement({bool pretty: false}) {
+  String statement({bool pretty = false}) {
     var br = pretty ? '\n' : ' ';
     var tableName = table?.$name ?? '';
     var insert = _insert.clause ?? '';
@@ -31,7 +30,8 @@ class InsertQuery extends Query {
   /// Insert a complete [StanzaEntity] into the database.
   void insertEntity<T>(T entity) {
     if (table.$type != T) {
-      var msg = 'Mismatch. The entity is Type $T. The table is type ${table.$type}';
+      var msg =
+          'Mismatch. The entity is Type $T. The table is type ${table.$type}';
       throw StanzaException(msg);
     }
     var map = table.toDb(entity);
@@ -46,8 +46,5 @@ class InsertQuery extends Query {
     q.importSubstitutionValues(substitutionValues);
     q._insert = _insert.clone();
     return q;
-
   }
-
-
 }

@@ -7,11 +7,5 @@ class PostgresCredentials {
   final String password;
 
   PostgresCredentials(
-    this.host,
-    this.port,
-    this.db,
-    this.username,
-    this.password
-  );
-
+      this.host, this.port, this.db, this.username, this.password);
 }

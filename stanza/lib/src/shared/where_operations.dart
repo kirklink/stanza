@@ -8,7 +8,7 @@ class WhereOperation {
   String _comparison;
   String _comparable;
   bool _caseSensitive;
-  
+
   WhereOperation(this._where);
 
   Query _attach({ValueSub substitution}) {
@@ -21,7 +21,8 @@ class WhereOperation {
       caseOpen = 'LOWER(';
       caseClose = ')';
     }
-    var r = '${_where.operation} $open$caseOpen${fieldName}$caseClose $_comparison $_comparable$close';
+    var r =
+        '${_where.operation} $open$caseOpen${fieldName}$caseClose $_comparison $_comparable$close';
     _where.attachment.add(r);
     if (substitution != null) _where.source.addSubstitution(substitution);
     return _where.source;
@@ -96,7 +97,7 @@ class WhereOperation {
   }
 
   /// If the field matches another string.
-  Query matches(String string, {bool caseSensitive: false}) {
+  Query matches(String string, {bool caseSensitive = false}) {
     _comparison = '=';
     _comparable = _formatAsString(_formatCaseSensitive(string, caseSensitive));
     _caseSensitive = caseSensitive;
@@ -104,25 +105,28 @@ class WhereOperation {
   }
 
   /// If the field starts with another string.
-  Query startsWith(String string, {bool caseSensitive: false}) {
+  Query startsWith(String string, {bool caseSensitive = false}) {
     _comparison = 'LIKE';
-    _comparable = _formatAsString('${_formatCaseSensitive(string, caseSensitive)}%');
+    _comparable =
+        _formatAsString('${_formatCaseSensitive(string, caseSensitive)}%');
     _caseSensitive = caseSensitive;
     return _attach();
   }
 
   /// If the field ends with another string.
-  Query endsWith(String string, {bool caseSensitive: false}) {
+  Query endsWith(String string, {bool caseSensitive = false}) {
     _comparison = 'LIKE';
-    _comparable = _formatAsString('%${_formatCaseSensitive(string, caseSensitive)}');
+    _comparable =
+        _formatAsString('%${_formatCaseSensitive(string, caseSensitive)}');
     _caseSensitive = caseSensitive;
     return _attach();
   }
 
   /// If the field contains another string.
-  Query contains(String string, {bool caseSensitive: false}) {
+  Query contains(String string, {bool caseSensitive = false}) {
     _comparison = 'LIKE';
-    _comparable = _formatAsString('%${_formatCaseSensitive(string, caseSensitive)}%');
+    _comparable =
+        _formatAsString('%${_formatCaseSensitive(string, caseSensitive)}%');
     _caseSensitive = caseSensitive;
     return _attach();
   }
@@ -160,8 +164,5 @@ class WhereOperation {
     _comparison = '=';
     _comparable = '${date.toString()}::date';
     return _attach();
-
   }
-
-
 }

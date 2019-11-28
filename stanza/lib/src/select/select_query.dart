@@ -9,12 +9,10 @@ import 'package:stanza/src/select/limit_clause.dart';
 import 'package:stanza/src/select/offset_clause.dart';
 import 'package:stanza/src/table.dart';
 
-
 /// Base class for a select query.
-/// 
+///
 /// Takes the generated code table from a [StanzaEntity]
 class SelectQuery extends Query with WhereClause {
-
   var _selectClause = SelectClause();
   OrderByClause _orderByClause = OrderByClause();
   GroupByClause _groupByClause;
@@ -23,7 +21,7 @@ class SelectQuery extends Query with WhereClause {
 
   SelectQuery(Table table) : super(table);
 
-  String statement({bool pretty: false}) {
+  String statement({bool pretty = false}) {
     var br = pretty ? '\n' : ' ';
     var select = _selectClause?.clause;
     var where = whereClauses;
@@ -31,7 +29,7 @@ class SelectQuery extends Query with WhereClause {
     var offset = _offsetClause?.clause;
     var group = _groupByClause?.clause;
     var order = _orderByClause?.clause;
-    
+
     var buf = StringBuffer();
     buf.writeAll(['SELECT ', select]);
     if (table != null) buf.writeAll([br, 'FROM ', table.$name]);
@@ -57,28 +55,34 @@ class SelectQuery extends Query with WhereClause {
 
   /// Group a select query by a list of [Field]s
   void groupBy(List<Field> fields) {
-    if (_groupByClause != null) throw StanzaException('Cannot have more than one group by clause in a query.');
+    if (_groupByClause != null)
+      throw StanzaException(
+          'Cannot have more than one group by clause in a query.');
     _groupByClause = GroupByClause(fields);
   }
 
   /// Order a select query by the provided [Field].
-  /// 
+  ///
   /// [descending]: can be made true to reverse the sort order.
-  /// Multiple orderBy clauses can be added to a select query and they are applied in the 
+  /// Multiple orderBy clauses can be added to a select query and they are applied in the
   /// order provided.
-  void orderBy(Field field, {bool descending: false}) {
+  void orderBy(Field field, {bool descending = false}) {
     _orderByClause.add(field, descending: descending);
   }
 
   /// Limit the number of results returned by a query.
   void limit(int i) {
-    if (_limitClause != null) throw StanzaException('Cannot have more than one limit clause in a query.');
+    if (_limitClause != null)
+      throw StanzaException(
+          'Cannot have more than one limit clause in a query.');
     _limitClause = LimitClause(i);
   }
 
   /// Offset the results returned by a query by this number of rows.
   void offset(int i) {
-    if (_offsetClause != null) throw StanzaException('Cannot have more than one offset clause in a query.');
+    if (_offsetClause != null)
+      throw StanzaException(
+          'Cannot have more than one offset clause in a query.');
     _offsetClause = OffsetClause(i);
   }
 
@@ -93,5 +97,4 @@ class SelectQuery extends Query with WhereClause {
     q._offsetClause = _offsetClause?.clone();
     return q;
   }
-
 }

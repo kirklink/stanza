@@ -1,7 +1,6 @@
 /// Not to be used directly. Converts values to tokens that are used by the Postgresql database
 /// connection library.
 class ValueSub {
-
   String _key;
   dynamic _value;
   String _token;
@@ -15,5 +14,4 @@ class ValueSub {
   String get key => _key;
   dynamic get value => _value;
   String get token => _token;
-
 }

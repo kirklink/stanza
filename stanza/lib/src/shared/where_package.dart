@@ -1,7 +1,6 @@
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/query.dart';
 
-
 class WherePackage {
   final String operation;
   final Field field;
@@ -11,5 +10,5 @@ class WherePackage {
   final Query source;
 
   WherePackage(this.operation, this.field, this.openBracket, this.closeBracket,
-    this.attachment, this.source);
+      this.attachment, this.source);
 }

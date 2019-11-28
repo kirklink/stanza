@@ -2,11 +2,9 @@ import 'package:stanza/src/query_clause.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/table.dart';
 
-
 class SelectClause<T> implements QueryClause {
-
   List<String> _fields = [];
-  
+
   SelectClause();
 
   String get clause => '${_fields.join(', ')}';
@@ -24,5 +22,4 @@ class SelectClause<T> implements QueryClause {
   SelectClause clone() {
     return this;
   }
-
 }

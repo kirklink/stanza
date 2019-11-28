@@ -26,6 +26,7 @@ class QueryResult<T> {
 
   /// True if the [QueryResult] contains no rows.
   bool get isEmpty => raw.isEmpty;
+
   /// True if the [QueryResult] contains rows.
   bool get isNotEmpty => raw.isNotEmpty;
 
@@ -38,9 +39,9 @@ class QueryResult<T> {
       var value = row[_table.$name];
 
       if (value != null) {
-        result = _table.fromDb(value);
+        result = _table.fromDb(value) as T;
       }
-      
+
       var aggregates = row[null];
       var container = Result<T>(result, aggregates);
       list.add(container);
@@ -52,7 +53,7 @@ class QueryResult<T> {
   /// The first [Result] from a query.
   Result<T> get first {
     var all = this.all;
-    if (all.length == 0) return null;
+    if (all.isEmpty) return null;
     return this.all[0];
   }
 
@@ -73,10 +74,4 @@ class QueryResult<T> {
     }
     return results;
   }
-
-
-
-
-
-
 }

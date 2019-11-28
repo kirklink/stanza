@@ -1,8 +1,6 @@
 import 'package:stanza/src/query_clause.dart';
 
-
 class LimitClause implements QueryClause {
-
   final int limit;
 
   LimitClause(this.limit);
@@ -12,5 +10,4 @@ class LimitClause implements QueryClause {
   LimitClause clone() {
     return this;
   }
-
 }
