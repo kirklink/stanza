@@ -1,5 +1,21 @@
 # stanza
 
+- [stanza](#stanza)
+  * [overview](#overview)
+  * [what it is](#what-it-is)
+  * [what it is not](#what-it-is-not)
+  * [how to use it](#how-to-use-it)
+    + [annotate a class](#annotate-a-class)
+    + [set up the database credentials](#set-up-the-database-credentials)
+    + [create a stanza instance](#create-a-stanza-instance)
+    + [build a query](#build-a-query)
+    + [run the query](#run-the-query)
+    + [use aggregates in a query](#use-aggregates-in-a-query)
+    + [execute a query in a transaction](#execute-a-query-in-a-transaction)
+    + [keep a connection open](#keep-a-connection-open)
+    + [print a query](#print-a-query)
+    + [fork a query](#fork-a-query)
+
 ## overview
 Stanza is a library for writing basic Postgresql statements in a type safe, Dart-y syntax. The goal has been to keep the API simple and clear while speeding up construction of Postgresql queries when using Dart on the server. It started as a hobby project but evolved enough to make it potentially useful to others. If you are interested in contributing to this library, please get in touch.
 
@@ -270,3 +286,6 @@ for (var color in colors) {
 await connection.close();
 ```
 This will print the number of results for each color of animal after executing three separate queries, in this case reusing the database connection and closing it manually after.
+
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
