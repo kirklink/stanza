@@ -21,8 +21,9 @@ abstract class Query {
 
   /// Print a query to the console.
   String toString() {
-    if (_substitutionValues.isEmpty)
+    if (_substitutionValues.isEmpty) {
       return 'Type: ${this.runtimeType}\n${statement(pretty: true)}';
+    }
     return 'Type: ${this.runtimeType}\n${this.runtimeType}\n${statement(pretty: true)}\nsubstitutionValues: ${_substitutionValues.toString()}';
   }
 

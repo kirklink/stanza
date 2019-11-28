@@ -55,9 +55,10 @@ class SelectQuery extends Query with WhereClause {
 
   /// Group a select query by a list of [Field]s
   void groupBy(List<Field> fields) {
-    if (_groupByClause != null)
+    if (_groupByClause != null) {
       throw StanzaException(
           'Cannot have more than one group by clause in a query.');
+    }
     _groupByClause = GroupByClause(fields);
   }
 
@@ -72,17 +73,19 @@ class SelectQuery extends Query with WhereClause {
 
   /// Limit the number of results returned by a query.
   void limit(int i) {
-    if (_limitClause != null)
+    if (_limitClause != null) {
       throw StanzaException(
           'Cannot have more than one limit clause in a query.');
+    }
     _limitClause = LimitClause(i);
   }
 
   /// Offset the results returned by a query by this number of rows.
   void offset(int i) {
-    if (_offsetClause != null)
+    if (_offsetClause != null) {
       throw StanzaException(
           'Cannot have more than one offset clause in a query.');
+    }
     _offsetClause = OffsetClause(i);
   }
 

@@ -31,9 +31,10 @@ mixin WhereClause on Query {
   /// conditional statements.
   WhereOperation where(Field field,
       {bool openBracket = false, bool closeBracket = false}) {
-    if (_clauses.isNotEmpty)
+    if (_clauses.isNotEmpty) {
       throw StanzaException(
           'A query can only have one WHERE clause. Consider AND or OR.');
+    }
     if (openBracket) bracketDepth++;
     if (closeBracket) bracketDepth--;
     var package =
@@ -48,9 +49,10 @@ mixin WhereClause on Query {
   /// conditional statements.
   WhereOperation and(Field field,
       {bool openBracket = false, bool closeBracket = false}) {
-    if (_clauses.isEmpty)
+    if (_clauses.isEmpty) {
       throw StanzaException(
           'A query WHERE clause must start with WHERE, not AND.');
+    }
     if (openBracket) bracketDepth++;
     if (closeBracket) bracketDepth--;
     var package =
@@ -65,11 +67,16 @@ mixin WhereClause on Query {
   /// conditional statements.
   WhereOperation or(Field field,
       {bool openBracket = false, bool closeBracket = false}) {
-    if (_clauses.isEmpty)
+    if (_clauses.isEmpty) {
       throw StanzaException(
           'A query WHERE clause must start with WHERE, not OR.');
-    if (openBracket) bracketDepth++;
-    if (closeBracket) bracketDepth--;
+    }
+    if (openBracket) {
+      bracketDepth++;
+    }
+    if (closeBracket) {
+      bracketDepth--;
+    }
     var package =
         WherePackage('OR', field, openBracket, closeBracket, _clauses, this);
     var op = WhereOperation(package);
