@@ -2,7 +2,7 @@ name: stanza
 author: "Kirk Linkletter <kirklinkletter@gmail.com>"
 homepage: "https://github.com/kirklink/stanza"
 description: "Library for building PostgreSQL queries."
-version: 0.0.8
+version: 0.0.9
 environment:
   sdk: '>=2.1.0 <3.0.0'
 dependencies:
