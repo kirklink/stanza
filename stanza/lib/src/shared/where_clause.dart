@@ -26,6 +26,10 @@ mixin WhereClause on Query {
     bracketDepth = cloner.bracketDepth;
   }
 
+  /// Begin a conditional statement in a query.
+  /// 
+  /// [openBracket] and [closeBracket] can be made true to apply simple grouping to
+  /// conditional statements.
   WhereOperation where(Field field, {bool openBracket: false, bool closeBracket: false}) {
     if (_clauses.length != 0) throw StanzaException('A query can only have one WHERE clause. Consider AND or OR.');
     if (openBracket) bracketDepth++;
@@ -35,6 +39,10 @@ mixin WhereClause on Query {
     return op;
   }
 
+  /// Continue a conditional statement with an AND condition.
+  /// 
+  /// [openBracket] and [closeBracket] can be made true to apply simple grouping to
+  /// conditional statements.
   WhereOperation and(Field field, {bool openBracket: false, bool closeBracket: false}) {
     if (_clauses.length == 0) throw StanzaException('A query WHERE clause must start with WHERE, not AND.');
     if (openBracket) bracketDepth++;
@@ -44,6 +52,10 @@ mixin WhereClause on Query {
     return op;
   }
 
+  /// Continue a conditional statement with an OR condition.
+  /// 
+  /// [openBracket] and [closeBracket] can be made true to apply simple grouping to
+  /// conditional statements.
   WhereOperation or(Field field, {bool openBracket: false, bool closeBracket: false}) {
     if (_clauses.length == 0) throw StanzaException('A query WHERE clause must start with WHERE, not OR.');
     if (openBracket) bracketDepth++;

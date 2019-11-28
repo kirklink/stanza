@@ -1,3 +1,5 @@
+/// Not to be used directly. Converts values to tokens that are used by the Postgresql database
+/// connection library.
 class ValueSub {
 
   String _key;

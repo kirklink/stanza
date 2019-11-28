@@ -30,6 +30,9 @@ class SetClause implements QueryClause {
 
 }
 
+/// The segment of a update query that sets a value on a column.
+/// 
+/// Typesafe options are provided as a convenience but a dynamic value can also be used.
 class SetValue<T> {
 
   final Field field;
@@ -47,26 +50,32 @@ class SetValue<T> {
     return src;
   }
 
+  /// Set the value to a number.
   UpdateQuery number(num number) {
     return _attach(number);
   }
 
+  /// Set the value to an integer.
   UpdateQuery integer(int integer) {
     return _attach(integer);
   }
 
+  /// Set the value to a double (float).
   UpdateQuery float(double float) {
     return _attach(float);
   }
 
+  /// Set the value to a string.
   UpdateQuery string(String string) {
     return _attach(string);
   }
 
+  /// Set the value to a datetime.
   UpdateQuery datetime(DateTime datetime) {
     return _attach(datetime);
   }
 
+  /// Set the value to a boolean.
   UpdateQuery boolean(bool boolean) {
     return _attach(boolean);
   }
@@ -76,6 +85,7 @@ class SetValue<T> {
   //   return _attach(meer);
   // }
 
+  /// Set the value to a dynamic value.
   UpdateQuery any(dynamic value) {
     return _attach(value);
   }

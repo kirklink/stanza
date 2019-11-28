@@ -1,3 +1,4 @@
+/// Creates a credential object to be used in a [Stanza] instance.
 class PostgresCredentials {
   final String host;
   final int port;

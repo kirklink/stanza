@@ -13,7 +13,6 @@ abstract class Query {
 
   Query(this._table);
 
-  // String get tableName => _table.name;
   Table get table => _table;
   Map<String, dynamic> get substitutionValues => _substitutionValues;
 

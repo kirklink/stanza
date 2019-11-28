@@ -9,6 +9,10 @@ import 'package:stanza/src/select/limit_clause.dart';
 import 'package:stanza/src/select/offset_clause.dart';
 import 'package:stanza/src/table.dart';
 
+
+/// Base class for a select query.
+/// 
+/// Takes the generated code table from a [StanzaEntity]
 class SelectQuery extends Query with WhereClause {
 
   var _selectClause = SelectClause();
@@ -41,34 +45,44 @@ class SelectQuery extends Query with WhereClause {
     return query;
   }
 
-
+  /// Select a list of [Field]s from a [StanzaEntity] table.
   void selectFields(List<Field> fields) {
     _selectClause.add(fields);
   }
 
+  /// Select all the [Field]s from a [StanzaEntity] table.
   void selectStar(Table table) {
     _selectClause.star(table);
   }
 
+  /// Group a select query by a list of [Field]s
   void groupBy(List<Field> fields) {
     if (_groupByClause != null) throw StanzaException('Cannot have more than one group by clause in a query.');
     _groupByClause = GroupByClause(fields);
   }
 
+  /// Order a select query by the provided [Field].
+  /// 
+  /// [descending]: can be made true to reverse the sort order.
+  /// Multiple orderBy clauses can be added to a select query and they are applied in the 
+  /// order provided.
   void orderBy(Field field, {bool descending: false}) {
     _orderByClause.add(field, descending: descending);
   }
 
+  /// Limit the number of results returned by a query.
   void limit(int i) {
     if (_limitClause != null) throw StanzaException('Cannot have more than one limit clause in a query.');
     _limitClause = LimitClause(i);
   }
 
+  /// Offset the results returned by a query by this number of rows.
   void offset(int i) {
     if (_offsetClause != null) throw StanzaException('Cannot have more than one offset clause in a query.');
     _offsetClause = OffsetClause(i);
   }
 
+  /// Reproduce a partial query to use in a loop or other dynamic pattern.
   SelectQuery fork() {
     var q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
