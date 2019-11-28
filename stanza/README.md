@@ -7,7 +7,7 @@ Stanza is a library for writing basic Postgresql statements in a type safe, Dart
 Stanza sits on top of [Stable Kernel's postgresql-dart](https://github.com/stablekernel/postgresql-dart) library for it's database connection. Further, it leverages some of existing functionality, such as type conversions and transactions, to interact with a Postgresql database. This library, and the companion stanza_builder library, add a layer of code generation to help structure Dart class models and compose simple queries using the type safe properties of the Dart class.
 
 ## what it is not
-Stanza is not an ORM and does not directly manage database objects (i.e., creating tables or performing migrations) although does provide a type safe interface between Dart classes and the database. There is currently no magic around query optimization or even joins although the API is planned to include joins. Heck, there isn't even delete query support yet because the initial use case was a purely additive-only database, although this should be a relatively easy expansion. It is simple but does offer a user-friendly API for the queries it supports and makes interacting with a database easier.
+Stanza is not an ORM and does not directly manage database objects (i.e., creating tables or performing migrations) although does provide a type safe interface between Dart classes and the database. There is currently no magic around query optimization or even joins although the API is planned to include joins. It is simple but does offer a user-friendly API for the queries it supports and makes interacting with a database easier.
 
 ## how to use it
 ### annotate a class
