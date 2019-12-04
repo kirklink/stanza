@@ -7,12 +7,18 @@ class WhereOperation {
   final WherePackage _where;
   String _comparison;
   String _comparable;
+  String _fieldPreModifier;
+  String _fieldPostModifier;
   bool _caseSensitive;
 
   WhereOperation(this._where);
 
   Query _attach({ValueSub substitution}) {
     var fieldName = _where.field.qualifiedName;
+    var comparison = _comparison != null ? _comparison : '';
+    var comparable = _comparable != null ? _comparable : '';
+    var preMod = _fieldPostModifier != null ? _fieldPostModifier : '';
+    var postMod = _fieldPostModifier != null ? _fieldPostModifier : '';
     var open = _where.openBracket ? '(' : '';
     var close = _where.closeBracket ? ')' : '';
     var caseOpen = '';
@@ -22,7 +28,7 @@ class WhereOperation {
       caseClose = ')';
     }
     var r =
-        '${_where.operation} $open$caseOpen${fieldName}$caseClose $_comparison $_comparable$close';
+        '${_where.operation} $open$caseOpen$preMod${fieldName}$postMod$caseClose $comparison $comparable$close';
     _where.attachment.add(r);
     if (substitution != null) _where.source.addSubstitution(substitution);
     return _where.source;
@@ -149,6 +155,7 @@ class WhereOperation {
   Query isBefore(DateTime date) {
     _comparison = '<';
     _comparable = '${date.toString()}::date';
+    _fieldPostModifier = '::date';
     return _attach();
   }
 
@@ -156,6 +163,7 @@ class WhereOperation {
   Query isAfter(DateTime date) {
     _comparison = '>';
     _comparable = '${date.toString()}::date';
+    _fieldPostModifier = '::date';
     return _attach();
   }
 
@@ -163,6 +171,7 @@ class WhereOperation {
   Query isOn(DateTime date) {
     _comparison = '=';
     _comparable = '${date.toString()}::date';
+    _fieldPostModifier = '::date';
     return _attach();
   }
 }
