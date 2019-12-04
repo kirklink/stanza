@@ -1,4 +1,3 @@
-
 class StanzaBuilderException implements Exception {
   String cause;
   StanzaBuilderException(this.cause);

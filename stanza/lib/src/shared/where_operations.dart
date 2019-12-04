@@ -33,7 +33,7 @@ class WhereOperation {
       _where.attachment.add(r);
     } else {
       var r =
-        '${_where.operation} $open$caseOpen$preMod${fieldName}$postMod$caseClose $comparison $comparable$close';
+          '${_where.operation} $open$caseOpen$preMod${fieldName}$postMod$caseClose $comparison $comparable$close';
       _where.attachment.add(r);
     }
     if (substitution != null) _where.source.addSubstitution(substitution);

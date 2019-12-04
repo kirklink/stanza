@@ -13,25 +13,26 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
   @override
   FutureOr<String> generateForAnnotatedElement(
       Element element, ConstantReader annotation, BuildStep buildStep) {
-    
     if (element is! ClassElement) {
-      throw('StanzaEntity must only annotate a class.');
+      throw ('StanzaEntity must only annotate a class.');
     }
 
     var $table = (element as ClassElement).getField('\$table');
     if ($table == null || !$table.isStatic) {
       var buf = StringBuffer();
       var tableClass = "${element.name}Table";
-      buf.writeln('\nThe StanzaEntity class "${element.name}" must have a static field "\$table".');
-      buf.writeln('Add this to ${element.name}: static _\$$tableClass \$table = _\$$tableClass();');
+      buf.writeln(
+          '\nThe StanzaEntity class "${element.name}" must have a static field "\$table".');
+      buf.writeln(
+          'Add this to ${element.name}: static _\$$tableClass \$table = _\$$tableClass();');
       throw StanzaBuilderException(buf.toString());
     }
 
     var fileBuffer = StringBuffer();
     var tableBuffer = StringBuffer();
-    
+
     bool snakeCase = annotation.peek('snakeCase')?.boolValue ?? false;
-    var tableName = annotation.peek('name')?.stringValue ;
+    var tableName = annotation.peek('name')?.stringValue;
     // If table name is not provided, use the entity name
     if (tableName == null) {
       tableName = '${element.name}';
@@ -43,7 +44,8 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     }
     // Otherwise a table name was provided and should be used
 
-    tableBuffer.writeln("class _\$${element.name}Table extends Table<${element.name}> {");
+    tableBuffer.writeln(
+        "class _\$${element.name}Table extends Table<${element.name}> {");
     tableBuffer.writeln("final String \$name = '$tableName';");
     tableBuffer.writeln("final Type \$type = ${element.name};\n");
     var fromDbBuffer = StringBuffer();
@@ -57,7 +59,8 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       var dbName = field.name;
       var readOnly = false;
       if (_checkForStanzaField.hasAnnotationOfExact(field)) {
-        final reader = ConstantReader(_checkForStanzaField.firstAnnotationOf(field));
+        final reader =
+            ConstantReader(_checkForStanzaField.firstAnnotationOf(field));
         dbName = reader.peek('name')?.stringValue ?? field.name;
         readOnly = reader.peek('readOnly')?.boolValue ?? false;
       }
@@ -65,9 +68,11 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
         var rc = ReCase(dbName);
         dbName = rc.snakeCase;
       }
-      tableBuffer.writeln("Field get ${field.name} => Field('$tableName', '$dbName');");
-      fromDbBuffer.writeln("..${field.name} = map['$dbName'] as ${field.type.displayName}");
-      if (!readOnly)toDbBuffer.writeln("'$dbName': instance.${field.name},");
+      tableBuffer.writeln(
+          "Field get ${field.name} => Field('$tableName', '$dbName');");
+      fromDbBuffer.writeln(
+          "..${field.name} = map['$dbName'] as ${field.type.displayName}");
+      if (!readOnly) toDbBuffer.writeln("'$dbName': instance.${field.name},");
     }
     fromDbBuffer.writeln(";}");
     toDbBuffer.writeln("};}");
