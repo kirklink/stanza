@@ -9,6 +9,7 @@ class WhereOperation {
   String _comparable;
   String _fieldPreModifier;
   String _fieldPostModifier;
+  String _raw;
   bool _caseSensitive;
 
   WhereOperation(this._where);
@@ -17,7 +18,7 @@ class WhereOperation {
     var fieldName = _where.field.qualifiedName;
     var comparison = _comparison != null ? _comparison : '';
     var comparable = _comparable != null ? _comparable : '';
-    var preMod = _fieldPostModifier != null ? _fieldPostModifier : '';
+    var preMod = _fieldPreModifier != null ? _fieldPreModifier : '';
     var postMod = _fieldPostModifier != null ? _fieldPostModifier : '';
     var open = _where.openBracket ? '(' : '';
     var close = _where.closeBracket ? ')' : '';
@@ -27,9 +28,14 @@ class WhereOperation {
       caseOpen = 'LOWER(';
       caseClose = ')';
     }
-    var r =
+    if (_raw != null) {
+      var r = '${_where.operation} $_raw';
+      _where.attachment.add(r);
+    } else {
+      var r =
         '${_where.operation} $open$caseOpen$preMod${fieldName}$postMod$caseClose $comparison $comparable$close';
-    _where.attachment.add(r);
+      _where.attachment.add(r);
+    }
     if (substitution != null) _where.source.addSubstitution(substitution);
     return _where.source;
   }
@@ -152,25 +158,25 @@ class WhereOperation {
   }
 
   /// If the field is before another date.
-  Query isBefore(DateTime date) {
+  Query dateIsBefore(DateTime date) {
     _comparison = '<';
-    _comparable = '${date.toString()}::date';
+    _comparable = "'${date.toIso8601String().split('T')[0]}'";
     _fieldPostModifier = '::date';
     return _attach();
   }
 
   /// If the field is after another date.
-  Query isAfter(DateTime date) {
+  Query dateIsAfter(DateTime date) {
     _comparison = '>';
-    _comparable = '${date.toString()}::date';
+    _comparable = "'${date.toIso8601String().split('T')[0]}'";
     _fieldPostModifier = '::date';
     return _attach();
   }
 
   /// If the field is on another date.
-  Query isOn(DateTime date) {
+  Query dateIsOn(DateTime date) {
     _comparison = '=';
-    _comparable = '${date.toString()}::date';
+    _comparable = "'${date.toIso8601String().split('T')[0]}'";
     _fieldPostModifier = '::date';
     return _attach();
   }
