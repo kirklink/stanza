@@ -6,3 +6,7 @@
 
 ## 0.0.11
 - Removed unused dependency
+
+## 0.0.12
+- Fixed date comparisons in where clauses.
+- Added raw string condition for where clauses.
