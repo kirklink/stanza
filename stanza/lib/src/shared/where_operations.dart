@@ -180,4 +180,10 @@ class WhereOperation {
     _fieldPostModifier = '::date';
     return _attach();
   }
+
+  /// A query condition supplied in as a raw string.
+  Query raw(String condition) {
+    _raw = condition;
+    return _attach();
+  }
 }
