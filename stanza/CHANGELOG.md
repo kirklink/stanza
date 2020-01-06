@@ -10,3 +10,6 @@
 ## 0.0.12
 - Fixed date comparisons in where clauses.
 - Added raw string condition for where clauses.
+
+## 0.0.13
+- Fixed issue in where clauses with substitution values not allowing periods in qualified field names.
