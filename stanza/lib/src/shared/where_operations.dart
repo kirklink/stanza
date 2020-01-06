@@ -71,7 +71,7 @@ class WhereOperation {
   /// If the field is equal to another number.
   Query isEqualTo(num number) {
     _comparison = '=';
-    var sub = ValueSub(_where.field.qualifiedName, number);
+    var sub = ValueSub(_where.field.qualifiedName.replaceAll('.', '_'), number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
@@ -79,7 +79,7 @@ class WhereOperation {
   /// If the field is greater than another number.
   Query isGreaterThan(num number) {
     _comparison = '>';
-    var sub = ValueSub(_where.field.qualifiedName, number);
+    var sub = ValueSub(_where.field.qualifiedName.replaceAll('.', '_'), number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
@@ -87,7 +87,7 @@ class WhereOperation {
   /// If the field is greater than or equal to another number.
   Query isGreaterThanOrEqualTo(num number) {
     _comparison = '>=';
-    var sub = ValueSub(_where.field.qualifiedName, number);
+    var sub = ValueSub(_where.field.qualifiedName.replaceAll('.', '_'), number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
@@ -95,7 +95,7 @@ class WhereOperation {
   /// If the field is less than another number.
   Query isLessThan(num number) {
     _comparison = '<';
-    var sub = ValueSub(_where.field.qualifiedName, number);
+    var sub = ValueSub(_where.field.qualifiedName.replaceAll('.', '_'), number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
@@ -103,7 +103,7 @@ class WhereOperation {
   /// If the field is less than or equal to another number.
   Query isLessThanOrEqualTo(num number) {
     _comparison = '<=';
-    var sub = ValueSub(_where.field.qualifiedName, number);
+    var sub = ValueSub(_where.field.qualifiedName.replaceAll('.', '_'), number);
     _comparable = sub.token;
     return _attach(substitution: sub);
   }
