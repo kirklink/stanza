@@ -13,3 +13,6 @@
 
 ## 0.0.13
 - Fixed issue in where clauses with substitution values not allowing periods in qualified field names.
+
+## 0.0.15
+- Update dependencies

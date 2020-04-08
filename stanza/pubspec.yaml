@@ -1,5 +1,5 @@
 name: stanza
-homepage: "https://github.com/kirklink/stanza"
+homepage: "https://github.com/kirklink"
 description: "Library for building PostgreSQL queries in a Dart-y, type safe syntax that converts between Dart classes and Postgresql tables."
 version: 0.0.15
 environment:
