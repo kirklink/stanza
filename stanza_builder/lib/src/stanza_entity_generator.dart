@@ -76,7 +76,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       tableBuffer.writeln(
           "Field get ${field.name} => Field('$tableName', '$dbName');");
       fromDbBuffer.writeln(
-          "..${field.name} = map['$dbName'] as ${field.type.getDisplayString}");
+          "..${field.name} = map['$dbName'] as ${field.type.getDisplayString()}");
       if (!readOnly) toDbBuffer.writeln("'$dbName': instance.${field.name},");
     }
     fromDbBuffer.writeln(";}");

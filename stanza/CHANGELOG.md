@@ -19,3 +19,6 @@
 
 ## 0.0.16
 - Add ignore option to StanzaField
+
+## 0.0.17
+- Bug fix
