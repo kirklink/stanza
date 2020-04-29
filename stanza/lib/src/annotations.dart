@@ -18,8 +18,10 @@ class StanzaEntity {
 /// [name]: sets an explict name on a field to correspond with a database field name.
 /// [readOnly]: will read this field from the database but not write it to the database. Useful
 /// for things like id's or timestamps.
+/// [ignore]: will ignore this field completely; it will not be in the table fields.
 class StanzaField {
   final String name;
   final bool readOnly;
-  const StanzaField({this.name, this.readOnly = false});
+  final bool ignore;
+  const StanzaField({this.name, this.readOnly = false, this.ignore = false});
 }

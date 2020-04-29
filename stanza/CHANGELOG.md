@@ -16,3 +16,6 @@
 
 ## 0.0.15
 - Update dependencies
+
+## 0.0.16
+- Add ignore option to StanzaField

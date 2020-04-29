@@ -58,11 +58,16 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       if (field.isStatic) continue;
       var dbName = field.name;
       var readOnly = false;
+      var ignore = false;
       if (_checkForStanzaField.hasAnnotationOfExact(field)) {
         final reader =
             ConstantReader(_checkForStanzaField.firstAnnotationOf(field));
         dbName = reader.peek('name')?.stringValue ?? field.name;
         readOnly = reader.peek('readOnly')?.boolValue ?? false;
+        ignore = reader.peek('ignore')?.boolValue ?? false;
+      }
+      if (ignore) {
+        continue;
       }
       if (snakeCase) {
         var rc = ReCase(dbName);
@@ -71,7 +76,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       tableBuffer.writeln(
           "Field get ${field.name} => Field('$tableName', '$dbName');");
       fromDbBuffer.writeln(
-          "..${field.name} = map['$dbName'] as ${field.type.displayName}");
+          "..${field.name} = map['$dbName'] as ${field.type.getDisplayString}");
       if (!readOnly) toDbBuffer.writeln("'$dbName': instance.${field.name},");
     }
     fromDbBuffer.writeln(";}");
