@@ -3,10 +3,13 @@
 /// [name]: rename the Stanza table to correspond with a database table name.
 /// [snakeCase]: automatically convert the table name and field names to snake_case, unless
 /// provided explicitly with a 'name' parameter.
+/// [readOnly]: Throws a StanzaEntityException if tried to write to the database. (Can still
+///  build write queries, just can't execute them (so not much point in building them!)).
 class StanzaEntity {
   final String name;
   final bool snakeCase;
-  const StanzaEntity({this.name, this.snakeCase = false});
+  final bool readOnly;
+  const StanzaEntity({this.name, this.snakeCase = false, this.readOnly = false});
 }
 
 /// The annotation to enhance a Dart class property into a Stanza database field interface.

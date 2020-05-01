@@ -33,6 +33,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
 
     bool snakeCase = annotation.peek('snakeCase')?.boolValue ?? false;
     var tableName = annotation.peek('name')?.stringValue;
+    final readOnlyEntity = annotation.peek('readOnly')?.boolValue ?? false;
     // If table name is not provided, use the entity name
     if (tableName == null) {
       tableName = '${element.name}';
@@ -53,7 +54,11 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     fromDbBuffer.writeln("${element.name} fromDb(Map<String, dynamic> map) {");
     fromDbBuffer.writeln("return ${element.name}()");
     toDbBuffer.writeln("Map<String, dynamic> toDb(${element.name} instance) {");
-    toDbBuffer.writeln("return <String, dynamic>{");
+    if (readOnlyEntity) {
+      toDbBuffer.writeln('throw StanzaEntityException("${element.name} is read only.");');
+    } else {
+      toDbBuffer.writeln("return <String, dynamic>{");
+    }
     for (var field in (element as ClassElement).fields) {
       if (field.isStatic) continue;
       var dbName = field.name;
@@ -77,13 +82,25 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
           "Field get ${field.name} => Field('$tableName', '$dbName');");
       fromDbBuffer.writeln(
           "..${field.name} = map['$dbName'] as ${field.type.getDisplayString()}");
-      if (!readOnly) toDbBuffer.writeln("'$dbName': instance.${field.name},");
+      if (!readOnly && !readOnlyEntity) {
+        toDbBuffer.writeln("'$dbName': instance.${field.name},");
+      }
     }
     fromDbBuffer.writeln(";}");
-    toDbBuffer.writeln("};}");
+    if (readOnlyEntity) {
+      toDbBuffer.writeln('}');
+    } else {
+      toDbBuffer.writeln("};}");
+    }
     tableBuffer.writeAll(['\n', fromDbBuffer, toDbBuffer]);
     tableBuffer.writeln("}");
-    fileBuffer.write(tableBuffer);
+    final exBuf = StringBuffer();
+    exBuf.writeln('class StanzaEntityException implements Exception {');
+    exBuf.writeln('final String cause;');
+    exBuf.writeln('StanzaEntityException(this.cause);');
+    exBuf.writeln('String toString() => cause;');
+    exBuf.write('}\n\n');
+    fileBuffer.writeAll(['\n', exBuf, tableBuffer]);
     return fileBuffer.toString();
   }
 }

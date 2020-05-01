@@ -22,3 +22,6 @@
 
 ## 0.0.17
 - Bug fix
+
+## 0.0.18
+- Add readOnly option to StanzaEntity
