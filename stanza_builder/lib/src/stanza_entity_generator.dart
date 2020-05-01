@@ -47,12 +47,16 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
 
     tableBuffer.writeln(
         "class _\$${element.name}Table extends Table<${element.name}> {");
+    tableBuffer.writeln('@override');
     tableBuffer.writeln("final String \$name = '$tableName';");
+    tableBuffer.writeln('@override');
     tableBuffer.writeln("final Type \$type = ${element.name};\n");
     var fromDbBuffer = StringBuffer();
     var toDbBuffer = StringBuffer();
+    fromDbBuffer.writeln('@override');
     fromDbBuffer.writeln("${element.name} fromDb(Map<String, dynamic> map) {");
     fromDbBuffer.writeln("return ${element.name}()");
+    toDbBuffer.writeln('@override');
     toDbBuffer.writeln("Map<String, dynamic> toDb(${element.name} instance) {");
     if (readOnlyEntity) {
       toDbBuffer.writeln('throw StanzaEntityException("${element.name} is read only.");');
@@ -98,6 +102,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     exBuf.writeln('class StanzaEntityException implements Exception {');
     exBuf.writeln('final String cause;');
     exBuf.writeln('StanzaEntityException(this.cause);');
+    exBuf.writeln('@override');
     exBuf.writeln('String toString() => cause;');
     exBuf.write('}\n\n');
     fileBuffer.writeAll(['\n', exBuf, tableBuffer]);

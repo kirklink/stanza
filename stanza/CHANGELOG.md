@@ -25,3 +25,6 @@
 
 ## 0.0.18
 - Add readOnly option to StanzaEntity
+
+## 0.0.19
+- Clean up minor code generator code
