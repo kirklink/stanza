@@ -28,3 +28,6 @@
 
 ## 0.0.19
 - Clean up minor code generator code
+
+## 0.0.20
+- Make entity exceptions class specific (i.e., ClassNameEntityException)
