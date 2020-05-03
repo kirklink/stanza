@@ -99,9 +99,9 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     tableBuffer.writeAll(['\n', fromDbBuffer, toDbBuffer]);
     tableBuffer.writeln("}");
     final exBuf = StringBuffer();
-    exBuf.writeln('class StanzaEntityException implements Exception {');
+    exBuf.writeln('class ${element.name}EntityException implements Exception {');
     exBuf.writeln('final String cause;');
-    exBuf.writeln('StanzaEntityException(this.cause);');
+    exBuf.writeln('${element.name}EntityException(this.cause);');
     exBuf.writeln('@override');
     exBuf.writeln('String toString() => cause;');
     exBuf.write('}\n\n');
