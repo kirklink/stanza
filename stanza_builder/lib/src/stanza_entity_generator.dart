@@ -59,7 +59,7 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     toDbBuffer.writeln('@override');
     toDbBuffer.writeln("Map<String, dynamic> toDb(${element.name} instance) {");
     if (readOnlyEntity) {
-      toDbBuffer.writeln('throw StanzaEntityException("${element.name} is read only.");');
+      toDbBuffer.writeln('throw ${element.name}EntityException("${element.name} is read only.");');
     } else {
       toDbBuffer.writeln("return <String, dynamic>{");
     }

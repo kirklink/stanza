@@ -1,11 +1,11 @@
 name: stanza_builder
 homepage: "https://github.com/kirklink/stanza"
 description: "Library for building PostgreSQL queries. This is the code generator."
-version: 0.0.20
+version: 0.0.21
 environment:
   sdk: '>=2.7.0 <3.0.0'
 dependencies:
-  stanza: ^0.0.20
+  stanza: ^0.0.21
   source_gen: ^0.9.0
   build: ^1.2.2
   analyzer: ^0.39.0
