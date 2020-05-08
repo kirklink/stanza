@@ -31,3 +31,6 @@
 
 ## 0.0.20
 - Make entity exceptions class specific (i.e., ClassNameEntityException)
+
+## 0.0.21
+- Fix bug when throwing entity exception
