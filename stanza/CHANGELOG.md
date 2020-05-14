@@ -34,3 +34,6 @@
 
 ## 0.0.21
 - Fix bug when throwing entity exception
+
+## 0.0.22
+- Upgrade postgres dependency version
