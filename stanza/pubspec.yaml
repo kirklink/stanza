@@ -5,7 +5,7 @@ version: 0.0.21
 environment:
   sdk: '>=2.1.0 <3.0.0'
 dependencies:
-  postgres: '^2.0.0'
+  postgres: '^2.1.1'
   pool: '^1.4.0'
   recase: '^3.0.0'
 dev_dependencies:
