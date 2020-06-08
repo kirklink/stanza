@@ -37,3 +37,6 @@
 
 ## 0.0.22
 - Upgrade postgres dependency version
+
+## 0.0.23
+- Change initialization API to make it more clear which cached connection is being called
