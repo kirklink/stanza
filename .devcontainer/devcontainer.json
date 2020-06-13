@@ -1,0 +1,45 @@
+// For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.117.0/containers/dart
+{
+	"name": "Dart",
+	"dockerFile": "Dockerfile",
+	"mounts": [ "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind" ],
+	"runArgs": [
+		// "-v","/var/run/docker.sock:/var/run/docker.sock",
+		// Modified here to map to vscode user
+		"--mount", "type=bind,source=${env:HOME}${env:USERPROFILE}/.ssh,target=/home/vscode/.ssh",
+		"--mount", "type=bind,source=${env:HOME}${env:USERPROFILE}/.kube,target=/home/vscode/.kube",
+		"--mount", "type=bind,source=${env:HOME}${env:USERPROFILE}/.config/gcloud,target=/home/vscode/.config/gcloud",
+		"-e", "SYNC_LOCALHOST_KUBECONFIG=true",
+		"-e", "SYNC_LOCALHOST_GCLOUD=true",
+		"-e", "SYNC_LOCALHOST_SSH=true",
+		"--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
+		// add local packages to the container
+		// "--mount", "type=bind,source=${env:HOME}${env:USERPROFILE}/Documents/Development/projects/packages,target=/workspaces/projects/PROJECT_PATH/app/server/pkg",
+
+		// to pick up an environment file
+		// "--env-file", ".devcontainer/devcontainer.env",
+	],
+
+	// Set *default* container specific settings.json values on container create.
+	"settings": { 
+		"terminal.integrated.shell.linux": "/bin/bash"
+	},
+
+	// Add the IDs of extensions you want installed when the container is created.
+	"extensions": [
+		"dart-code.dart-code",
+		"dart-code.flutter",
+		"coenraads.bracket-pair-colorizer",
+		"coenraads.bracket-pair-colorizer-2",
+	],
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [8080],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "cd app/server && pub get",
+
+	// Uncomment to connect as a non-root user. See https://aka.ms/vscode-remote/containers/non-root.
+	"remoteUser": "vscode"
+}
