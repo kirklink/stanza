@@ -11,8 +11,9 @@ export 'package:stanza/src/delete/delete_query.dart';
 class Stanza {
   final PostgresCredentials _creds;
   final pl.Pool _pool;
+  final bool _isUnix;
 
-  Stanza._(this._creds, this._pool);
+  Stanza._(this._creds, this._pool, this._isUnix);
 
   
   @deprecated
@@ -21,21 +22,41 @@ class Stanza {
     final id = '${creds.host}:${creds.port}|${creds.db}';
     if (!_connections.containsKey(id)) {
       _connections[id] = Stanza._(
-          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)));
+          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
     var cache = _connections[id];
     return cache;
   }
 
+  @deprecated
   factory Stanza.init(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
     if (!_connections.containsKey(id)) {
       _connections[id] = Stanza._(
-          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)));
+          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
     var cache = _connections[id];
     return cache;
-  
+  }
+
+  factory Stanza.tcp(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
+    final id = '${creds.host}:${creds.port}|${creds.db}';
+    if (!_connections.containsKey(id)) {
+      _connections[id] = Stanza._(
+          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
+    }
+    var cache = _connections[id];
+    return cache;
+  }
+
+  factory Stanza.unix(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
+    final id = '${creds.host}:${creds.port}|${creds.db}';
+    if (!_connections.containsKey(id)) {
+      _connections[id] = Stanza._(
+          creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), true);
+    }
+    var cache = _connections[id];
+    return cache;
   }
 
   factory Stanza.getbyDatabase(String host, int port, String database) {
@@ -59,7 +80,7 @@ class Stanza {
   Future<StanzaConnection> connection() async {
     var connection = pg.PostgreSQLConnection(
         _creds.host, _creds.port, _creds.db,
-        username: _creds.username, password: _creds.password);
+        username: _creds.username, password: _creds.password, isUnixSocket: _isUnix);
     return StanzaConnection(_pool, connection);
   }
 
