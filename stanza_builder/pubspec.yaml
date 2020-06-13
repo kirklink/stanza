@@ -3,7 +3,7 @@ homepage: "https://github.com/kirklink/stanza"
 description: "Library for building PostgreSQL queries. This is the code generator."
 version: 0.0.23
 environment:
-  sdk: '>=2.7.0 <3.0.0'
+  sdk: '>=2.8.0 <3.0.0'
 dependencies:
   stanza: ^0.0.23
   # stanza:

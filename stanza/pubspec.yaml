@@ -3,9 +3,13 @@ homepage: "https://github.com/kirklink/stanza"
 description: "Library for building PostgreSQL queries in a Dart-y, type safe syntax that converts between Dart classes and Postgresql tables."
 version: 0.0.23
 environment:
-  sdk: '>=2.1.0 <3.0.0'
+  sdk: '>=2.8.0 <3.0.0'
 dependencies:
-  postgres: '^2.1.1'
+  # postgres: ^2.2.0 # with unix sockets
+  postgres:
+    git:
+      url: git@github.com:stablekernel/postgresql-dart.git
+      ref: ed1daeb9567d97017ced9af073d91fc64b4f07b6
   pool: '^1.4.0'
   recase: '^3.0.0'
 dev_dependencies:
