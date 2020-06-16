@@ -5,9 +5,9 @@ version: 0.0.24
 environment:
   sdk: '>=2.8.0 <3.0.0'
 dependencies:
-  stanza: ^0.0.24
-  # stanza:
-  #   path: ../stanza
+  # stanza: ^0.0.24
+  stanza:
+    path: ../stanza
   source_gen: ^0.9.0
   build: ^1.2.2
   analyzer: ^0.39.0

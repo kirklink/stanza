@@ -8,7 +8,7 @@ dependencies:
   # postgres: ^2.2.0 # with unix sockets
   postgres:
     git:
-      url: git@github.com:stablekernel/postgresql-dart.git
+      url: https://github.com/stablekernel/postgresql-dart.git
       ref: ed1daeb9567d97017ced9af073d91fc64b4f07b6
   pool: '^1.4.0'
   recase: '^3.0.0'
