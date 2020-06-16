@@ -9,7 +9,7 @@ dependencies:
   stanza:
     git: 
       url: https://github.com/kirklink/stanza.git
-      ref: a6aebc9bbab26c67ce0eeb2ba3e17fb8afd440be
+      ref: dev
       path: stanza
   source_gen: ^0.9.0
   build: ^1.2.2
