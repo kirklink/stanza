@@ -39,7 +39,13 @@ class StanzaConnection {
   pl.PoolResource _resource;
   pg.PostgreSQLConnection _connection;
 
-  StanzaConnection(this._pool, this._connection);
+  StanzaConnection._(this._pool, this._connection);
+
+  static Future<StanzaConnection> create(pl.Pool pool, pg.PostgreSQLConnection connection) async {
+    final con = StanzaConnection._(pool, connection);
+    con._resource ??= await con._pool.request();
+    return con;
+  }
 
   /// Executes a [Query].
   ///
@@ -60,10 +66,10 @@ class StanzaConnection {
         throw StanzaException(message);
       }
     }
-    _resource ??= await _pool.request();
-    if (_connection.isClosed) {
-      await _connection.open();
-    }
+    // _resource ??= await _pool.request();
+    // if (_connection.isClosed) {
+    //   await _connection.open();
+    // }
     var result = await _connection.mappedResultsQuery(query.statement(),
         substitutionValues: query.substitutionValues);
     if (autoClose) {
@@ -80,8 +86,8 @@ class StanzaConnection {
   /// and executed within a single database transaction, returning a single result.
   Future<QueryResult<T>> executeTransaction<T>(QueryBlock<T> queryBlock,
       {bool autoClose = true, bool overrideSafety = false}) async {
-    _resource ??= await _pool.request();
-    if (_connection.isClosed) await _connection.open();
+    // _resource ??= await _pool.request();
+    // if (_connection.isClosed) await _connection.open();
     final result = await _connection.transaction((ctx) async {
       return await queryBlock(_Transaction(ctx));
     }) as QueryResult<T>;
