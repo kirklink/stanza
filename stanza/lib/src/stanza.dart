@@ -45,8 +45,7 @@ class Stanza {
       _connections[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
-    var cache = _connections[id];
-    return cache;
+    return _connections[id];
   }
 
   factory Stanza.unix(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
@@ -55,8 +54,7 @@ class Stanza {
       _connections[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), true);
     }
-    var cache = _connections[id];
-    return cache;
+    return _connections[id];
   }
 
   factory Stanza.getbyDatabase(String host, int port, String database) {
@@ -68,7 +66,7 @@ class Stanza {
     }
   }
 
-  factory Stanza.getByConnectionId(String id) {
+  factory Stanza.getByInstanceId(String id) {
     if (!_connections.containsKey(id)) {
       throw StanzaException('The connection has not been initialized for $id');
     } else {

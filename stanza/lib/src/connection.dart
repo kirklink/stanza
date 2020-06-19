@@ -60,8 +60,10 @@ class StanzaConnection {
         throw StanzaException(message);
       }
     }
-    if (_resource == null) _resource = await _pool.request();
-    if (_connection.isClosed) await _connection.open();
+    _resource ??= await _pool.request();
+    if (_connection.isClosed) {
+      await _connection.open();
+    }
     var result = await _connection.mappedResultsQuery(query.statement(),
         substitutionValues: query.substitutionValues);
     if (autoClose) {
@@ -78,9 +80,9 @@ class StanzaConnection {
   /// and executed within a single database transaction, returning a single result.
   Future<QueryResult<T>> executeTransaction<T>(QueryBlock<T> queryBlock,
       {bool autoClose = true, bool overrideSafety = false}) async {
-    if (_resource == null) _resource = await _pool.request();
+    _resource ??= await _pool.request();
     if (_connection.isClosed) await _connection.open();
-    QueryResult<T> result = await _connection.transaction((ctx) async {
+    final result = await _connection.transaction((ctx) async {
       return await queryBlock(_Transaction(ctx));
     }) as QueryResult<T>;
     if (autoClose) {
