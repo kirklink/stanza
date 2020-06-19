@@ -35,18 +35,10 @@ class _Transaction {
 
 /// A database connection that in one of the pooled connections from a Stanza instance.
 class StanzaConnection {
-  pl.Pool _pool;
-  pl.PoolResource _resource;
-  pg.PostgreSQLConnection _connection;
+  final pl.PoolResource _resource;
+  final pg.PostgreSQLConnection _connection;
 
-  StanzaConnection._(this._pool, this._connection);
-
-  static Future<StanzaConnection> create(pl.Pool pool, pg.PostgreSQLConnection connection) async {
-    final con = StanzaConnection._(pool, connection);
-    con._resource ??= await con._pool.request();
-    await con._connection.open();
-    return con;
-  }
+  StanzaConnection(this._resource, this._connection);
 
   /// Executes a [Query].
   ///

@@ -79,7 +79,9 @@ class Stanza {
     var connection = pg.PostgreSQLConnection(
         _creds.host, _creds.port, _creds.db,
         username: _creds.username, password: _creds.password, isUnixSocket: _isUnix);
-    return StanzaConnection.create(_pool, connection);
+    final resource = await _pool.request();
+    await connection.open();
+    return StanzaConnection(resource, connection);
   }
 
   static List<String> get listInstances =>_instances.keys.toList();
