@@ -20,57 +20,57 @@ class Stanza {
   factory Stanza(PostgresCredentials creds,
       {int maxConnections = 25, int timeout = 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
-    if (!_connections.containsKey(id)) {
-      _connections[id] = Stanza._(
+    if (!_instances.containsKey(id)) {
+      _instances[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
-    var cache = _connections[id];
+    var cache = _instances[id];
     return cache;
   }
 
   @deprecated
   factory Stanza.init(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
-    if (!_connections.containsKey(id)) {
-      _connections[id] = Stanza._(
+    if (!_instances.containsKey(id)) {
+      _instances[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
-    var cache = _connections[id];
+    var cache = _instances[id];
     return cache;
   }
 
   factory Stanza.tcp(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
-    if (!_connections.containsKey(id)) {
-      _connections[id] = Stanza._(
+    if (!_instances.containsKey(id)) {
+      _instances[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), false);
     }
-    return _connections[id];
+    return _instances[id];
   }
 
   factory Stanza.unix(PostgresCredentials creds, {int maxConnections = 25, int timeout = 600}) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
-    if (!_connections.containsKey(id)) {
-      _connections[id] = Stanza._(
+    if (!_instances.containsKey(id)) {
+      _instances[id] = Stanza._(
           creds, pl.Pool(maxConnections, timeout: Duration(seconds: timeout)), true);
     }
-    return _connections[id];
+    return _instances[id];
   }
 
-  factory Stanza.getbyDatabase(String host, int port, String database) {
+  factory Stanza.getbyDatabaseReference(String host, int port, String database) {
     final id = '${host}:${port}|${database}';
-    if (!_connections.containsKey(id)) {
+    if (!_instances.containsKey(id)) {
       throw StanzaException('The connection has not been initialized for $host:$port|$database');
     } else {
-      return _connections[id];
+      return _instances[id];
     }
   }
 
   factory Stanza.getByInstanceId(String id) {
-    if (!_connections.containsKey(id)) {
+    if (!_instances.containsKey(id)) {
       throw StanzaException('The connection has not been initialized for $id');
     } else {
-      return _connections[id];
+      return _instances[id];
     }
   }
 
@@ -79,10 +79,10 @@ class Stanza {
     var connection = pg.PostgreSQLConnection(
         _creds.host, _creds.port, _creds.db,
         username: _creds.username, password: _creds.password, isUnixSocket: _isUnix);
-    return StanzaConnection(_pool, connection);
+    return StanzaConnection.create(_pool, connection);
   }
 
-  static List<String> get listConnections =>_connections.keys.toList();
+  static List<String> get listInstances =>_instances.keys.toList();
 
-  static final Map<String, Stanza> _connections = Map<String, Stanza>();
+  static final Map<String, Stanza> _instances = Map<String, Stanza>();
 }
