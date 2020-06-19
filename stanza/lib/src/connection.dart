@@ -44,6 +44,7 @@ class StanzaConnection {
   static Future<StanzaConnection> create(pl.Pool pool, pg.PostgreSQLConnection connection) async {
     final con = StanzaConnection._(pool, connection);
     con._resource ??= await con._pool.request();
+    await con._connection.open();
     return con;
   }
 
