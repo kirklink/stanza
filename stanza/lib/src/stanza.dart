@@ -76,10 +76,12 @@ class Stanza {
 
   /// Provides a databse connection using the Stanza instance's pooled connections.
   Future<StanzaConnection> connection() async {
-    var connection = pg.PostgreSQLConnection(
+    final connection = pg.PostgreSQLConnection(
         _creds.host, _creds.port, _creds.db,
         username: _creds.username, password: _creds.password, isUnixSocket: _isUnix);
+    print('WAITING FOR POOL RESOURCE');
     final resource = await _pool.request();
+    print('WAITING FOR CONNECTION TO OPEN');
     await connection.open();
     return StanzaConnection(resource, connection);
   }
