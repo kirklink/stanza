@@ -88,5 +88,5 @@ class Stanza {
 
   static List<String> get listInstances =>_instances.keys.toList();
 
-  static final Map<String, Stanza> _instances = Map<String, Stanza>();
+  static final _instances = <String, Stanza>{};
 }

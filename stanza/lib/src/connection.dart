@@ -92,7 +92,9 @@ class StanzaConnection {
   }
 
   Future close() async {
-    if (!_connection.isClosed) await _connection.close();
+    if (!_connection.isClosed) {
+      await _connection.close();
     _resource.release();
+    }
   }
 }
