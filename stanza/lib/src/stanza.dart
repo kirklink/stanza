@@ -79,10 +79,14 @@ class Stanza {
     final connection = pg.PostgreSQLConnection(
         _creds.host, _creds.port, _creds.db,
         username: _creds.username, password: _creds.password, isUnixSocket: _isUnix);
+    print(connection.isUnixSocket);
+    print(connection.isClosed);
     print('WAITING FOR POOL RESOURCE');
     final resource = await _pool.request();
+    print(resource.hashCode);
     print('WAITING FOR CONNECTION TO OPEN');
     await connection.open();
+    print(connection.isClosed);
     return StanzaConnection(resource, connection);
   }
 
