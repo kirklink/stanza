@@ -74,11 +74,52 @@ These are nice-to-haves that don't block adoption:
 
 ## Implementation Plan
 
-### Phase 1: Core SQL Completeness
+### Phase 1: Foundation & Core Blockers
 
-**Goal:** Handle 90% of real-world single-table and multi-table queries. After this phase, stanza is a viable choice for production use.
+**Goal:** Establish test coverage for existing code, add the features that would cause immediate rejection, and provide escape hatches. After this phase, stanza can handle real queries and users are never stuck.
 
-#### 1.1 — JOINs
+#### 1.1 — Test Suite for Existing Functionality
+
+Tests come first. The query builder is uniquely well-suited to unit testing — assert on the generated SQL string and substitution map, no database needed. Having tests before adding features provides regression safety and confirms the existing code actually works as expected.
+
+**Files to create:**
+- `test/select_query_test.dart`
+- `test/insert_query_test.dart`
+- `test/update_query_test.dart`
+- `test/delete_query_test.dart`
+- `test/where_operations_test.dart`
+- `test/field_test.dart`
+- `test/sql_injection_test.dart`
+
+**Strategy:**
+
+```dart
+// Example test pattern:
+test('select with where and limit', () {
+  final q = SelectQuery(animalTable)
+    ..selectStar()
+    ..where(animalTable.legs).isGreaterThan(2)
+    ..limit(10);
+
+  expect(q.statement(),
+    'SELECT mammal.* FROM mammal WHERE mammal.number_of_legs > @mammal_number_of_legs_0 LIMIT 10');
+  expect(q.substitutionValues, {'mammal_number_of_legs_0': 2});
+});
+```
+
+**Test coverage targets for existing code:**
+- Every method on `WhereOperation` (isEqualTo, matches, startsWith, endsWith, contains, isNull, isNotNull, etc.)
+- SQL injection payloads in string operations (verify they're parameterized, not interpolated)
+- LIKE escape characters (`%`, `_`, `\` in user input)
+- All query types: basic, with where, with all clauses combined
+- SELECT: fields, star, GROUP BY, ORDER BY, LIMIT, OFFSET, aggregates
+- INSERT: field-level, entity-level
+- UPDATE: column setters with WHERE
+- DELETE: with WHERE, safety check for WHERE-less
+- Query forking preserving state
+- Edge cases: empty select fields, multiple orderBy
+
+#### 1.2 — JOINs
 
 **Files to create:**
 - `lib/src/select/join_clause.dart`
@@ -141,7 +182,9 @@ LEFT JOIN habitat ON mammal.habitat_id = habitat.id
 WHERE owner.name = @owner_name_0
 ```
 
-#### 1.2 — RETURNING Clause
+**Tests:** `test/join_test.dart` — inner, left, right, cross, with where on joined table, multiple joins.
+
+#### 1.3 — RETURNING Clause
 
 **Files to create:**
 - `lib/src/shared/returning_clause.dart`
@@ -190,7 +233,95 @@ class ReturningClause {
 
 Apply via a mixin `ReturningMixin` on all three query types to avoid duplication.
 
-#### 1.3 — Batch Insert
+**Tests:** `test/returning_test.dart` — RETURNING on insert, update, delete; star vs specific fields.
+
+#### 1.4 — WHERE Clause Additions: IN, NOT IN, BETWEEN
+
+**Files to modify:**
+- `where_operations.dart`
+
+New methods on `WhereOperation`:
+
+```dart
+/// WHERE field IN (@val_0, @val_1, @val_2)
+Query isIn(List<dynamic> values) {
+  if (values.isEmpty) {
+    throw StanzaException('isIn() requires at least one value.');
+  }
+  final tokens = <String>[];
+  for (var i = 0; i < values.length; i++) {
+    final sub = ValueSub('${_subKeyBase}_in_$i', values[i]);
+    _where.source.addSubstitution(sub);
+    tokens.add(sub.token);
+  }
+  _raw = '${_where.field.qualifiedName} IN (${tokens.join(', ')})';
+  return _attach();
+}
+
+/// WHERE field NOT IN (...)
+Query isNotIn(List<dynamic> values) { /* mirror of isIn with NOT IN */ }
+
+/// WHERE field BETWEEN @low AND @high
+Query isBetween(dynamic low, dynamic high) {
+  final subLow = ValueSub('${_subKeyBase}_between_low', low);
+  final subHigh = ValueSub('${_subKeyBase}_between_high', high);
+  _where.source.addSubstitution(subLow);
+  _where.source.addSubstitution(subHigh);
+  _comparison = 'BETWEEN';
+  _comparable = '${subLow.token} AND ${subHigh.token}';
+  return _attach();
+}
+```
+
+These three operations cover the vast majority of where-clause patterns that are currently impossible to express.
+
+**Tests:** Added to `test/where_operations_test.dart` — isIn with various sizes, isNotIn, isBetween, empty list error.
+
+#### 1.5 — Raw SQL Escape Hatch
+
+This is simple to implement and immediately gives users a workaround for anything the builder can't express yet. Having it early reduces pressure to have every SQL feature perfect before stanza is useful.
+
+Add a `raw()` method to both `Stanza` and `StanzaSession`:
+
+```dart
+// Usage target:
+var result = await stanza.raw<Animal>(
+  'SELECT * FROM mammal WHERE name ILIKE @pattern',
+  {'pattern': '%tig%'},
+  Animal.$table,  // optional — for entity mapping
+);
+```
+
+**Files to modify:**
+- `stanza.dart`: Add `raw<T>()` method that takes SQL string, parameter map, and optional Table for result mapping
+- When `table` is provided, results go through `_toQueryResult<T>()` as normal
+- When `table` is null, return raw `List<Map<String, dynamic>>`
+
+#### 1.6 — SSL/TLS Configuration
+
+Most production PostgreSQL requires SSL. If someone evaluates stanza and can't connect to their database, it's effectively a blocker. This is a trivial change — just pass `SslMode` through to the postgres pool config.
+
+Extend `PostgresCredentials` or add a `ConnectionSettings` class:
+
+```dart
+// Usage target:
+var stanza = Stanza.tcp(creds,
+  maxConnections: 10,
+  sslMode: SslMode.verifyFull,
+);
+```
+
+**Files to modify:**
+- `stanza.dart`: Pass `pg.ConnectionSettings(sslMode: ...)` to `Pool.withEndpoints()`. Expose `SslMode` enum (re-export from postgres package or wrap it).
+- `postgres_credentials.dart`: Optionally add `sslMode` field, or keep it as a separate parameter on the factory.
+
+---
+
+### Phase 2: SQL Completeness
+
+**Goal:** Round out the query builder with the remaining SQL features that production apps need regularly. After this phase, users rarely need to drop to raw SQL.
+
+#### 2.1 — Batch Insert
 
 **Design:**
 
@@ -212,7 +343,9 @@ var q = InsertQuery(Animal.$table)
 
 The column list is determined by the first entity's `toDb()` keys. All entities must produce the same columns (enforced by the same `Table.toDb()` method).
 
-#### 1.4 — Upsert / ON CONFLICT
+**Tests:** `test/batch_insert_test.dart` — batch insert with 1, 3, 100 entities.
+
+#### 2.2 — Upsert / ON CONFLICT
 
 **Files to create:**
 - `lib/src/insert/conflict_clause.dart`
@@ -271,48 +404,9 @@ class ConflictClause {
 **Files to modify:**
 - `insert_query.dart`: Add `onConflict()` and `onConflictDoNothing()`, append clause to statement
 
-#### 1.5 — WHERE Clause Additions: IN, NOT IN, BETWEEN
+**Tests:** `test/upsert_test.dart` — DO UPDATE and DO NOTHING variants.
 
-**Files to modify:**
-- `where_operations.dart`
-
-New methods on `WhereOperation`:
-
-```dart
-/// WHERE field IN (@val_0, @val_1, @val_2)
-Query isIn(List<dynamic> values) {
-  if (values.isEmpty) {
-    throw StanzaException('isIn() requires at least one value.');
-  }
-  final tokens = <String>[];
-  for (var i = 0; i < values.length; i++) {
-    final sub = ValueSub('${_subKeyBase}_in_$i', values[i]);
-    _where.source.addSubstitution(sub);
-    tokens.add(sub.token);
-  }
-  _raw = '${_where.operation == 'WHERE' ? '' : ''}${_where.field.qualifiedName} IN (${tokens.join(', ')})';
-  // (Implemented more cleanly via _comparison = 'IN' and _comparable = '(tokens)')
-  return _attach();
-}
-
-/// WHERE field NOT IN (...)
-Query isNotIn(List<dynamic> values) { /* mirror of isIn with NOT IN */ }
-
-/// WHERE field BETWEEN @low AND @high
-Query isBetween(dynamic low, dynamic high) {
-  final subLow = ValueSub('${_subKeyBase}_between_low', low);
-  final subHigh = ValueSub('${_subKeyBase}_between_high', high);
-  _where.source.addSubstitution(subLow);
-  _where.source.addSubstitution(subHigh);
-  _comparison = 'BETWEEN';
-  _comparable = '${subLow.token} AND ${subHigh.token}';
-  return _attach();
-}
-```
-
-These three operations cover the vast majority of where-clause patterns that are currently impossible to express.
-
-#### 1.6 — DISTINCT and HAVING
+#### 2.3 — DISTINCT and HAVING
 
 **DISTINCT:**
 
@@ -344,97 +438,15 @@ var q = SelectQuery(Animal.$table)
 
 The cleanest implementation is a second `WhereClause`-like mixin or a standalone clause that reuses `WhereOperation` with a different attachment list.
 
+**Tests:** Added to `test/select_query_test.dart` — DISTINCT, HAVING, GROUP BY + HAVING combinations.
+
 ---
 
-### Phase 2: Production Readiness
+### Phase 3: Publishing & Ecosystem
 
-**Goal:** Fill the remaining gaps that production deployments need. After this phase, stanza can be published to pub.dev with confidence.
+**Goal:** Make stanza publishable, discoverable, and maintainable. After this phase, stanza is ready for pub.dev.
 
-#### 2.1 — Raw SQL Escape Hatch
-
-Add a `raw()` method to both `Stanza` and `StanzaSession`:
-
-```dart
-// Usage target:
-var result = await stanza.raw<Animal>(
-  'SELECT * FROM mammal WHERE name ILIKE @pattern',
-  {'pattern': '%tig%'},
-  Animal.$table,  // optional — for entity mapping
-);
-```
-
-**Files to modify:**
-- `stanza.dart`: Add `raw<T>()` method that takes SQL string, parameter map, and optional Table for result mapping
-- When `table` is provided, results go through `_toQueryResult<T>()` as normal
-- When `table` is null, return raw `List<Map<String, dynamic>>`
-
-#### 2.2 — SSL/TLS Configuration
-
-Extend `PostgresCredentials` or add a `ConnectionSettings` class:
-
-```dart
-// Usage target:
-var stanza = Stanza.tcp(creds,
-  maxConnections: 10,
-  sslMode: SslMode.verifyFull,
-);
-```
-
-**Files to modify:**
-- `stanza.dart`: Pass `pg.ConnectionSettings(sslMode: ...)` to `Pool.withEndpoints()`. Expose `SslMode` enum (re-export from postgres package or wrap it).
-- `postgres_credentials.dart`: Optionally add `sslMode` field, or keep it as a separate parameter on the factory.
-
-#### 2.3 — Test Suite
-
-**Files to create:**
-- `test/select_query_test.dart`
-- `test/insert_query_test.dart`
-- `test/update_query_test.dart`
-- `test/delete_query_test.dart`
-- `test/where_operations_test.dart`
-- `test/join_test.dart`
-- `test/returning_test.dart`
-- `test/batch_insert_test.dart`
-- `test/upsert_test.dart`
-- `test/field_test.dart`
-- `test/sql_injection_test.dart`
-
-**Strategy:**
-All query builder tests are pure unit tests — no database needed. Assert on `query.statement()` output and `query.substitutionValues` map.
-
-```dart
-// Example test pattern:
-test('select with where and limit', () {
-  final q = SelectQuery(animalTable)
-    ..selectStar()
-    ..where(animalTable.legs).isGreaterThan(2)
-    ..limit(10);
-
-  expect(q.statement(),
-    'SELECT mammal.* FROM mammal WHERE mammal.number_of_legs > @mammal_number_of_legs_0 LIMIT 10');
-  expect(q.substitutionValues, {'mammal_number_of_legs_0': 2});
-});
-```
-
-**Test coverage targets:**
-- Every method on `WhereOperation` (isEqualTo, matches, startsWith, endsWith, contains, isIn, isBetween, etc.)
-- SQL injection payloads in string operations (verify they're parameterized, not interpolated)
-- LIKE escape characters (`%`, `_`, `\` in user input)
-- All query types: basic, with where, with all clauses
-- JOIN variations: inner, left, right, with where on joined table
-- RETURNING on insert, update, delete
-- Batch insert with 1, 3, 100 entities
-- Upsert DO UPDATE and DO NOTHING
-- DISTINCT, HAVING, GROUP BY combinations
-- Edge cases: empty select fields, multiple orderBy, fork preserving state
-
-**Integration test suite** (optional, requires running PostgreSQL):
-- `test/integration/` — actual database round-trips
-- Use `docker-compose.yml` with a postgres container
-- Verify entity mapping end-to-end
-- Verify transaction rollback behavior
-
-#### 2.4 — Documentation
+#### 3.1 — Documentation
 
 **Files to create/update:**
 - `README.md` — complete rewrite:
@@ -456,13 +468,7 @@ test('select with where and limit', () {
 **Dartdoc:**
 Review all public APIs for complete doc comments. Priority: `Stanza`, `SelectQuery`, `InsertQuery`, `WhereOperation`, `Field`, `Table`.
 
----
-
-### Phase 3: Ecosystem & Publishing
-
-**Goal:** Make stanza discoverable, trustworthy, and maintainable.
-
-#### 3.1 — CI Pipeline
+#### 3.2 — CI Pipeline
 
 - GitHub Actions workflow:
   - `dart analyze` (zero warnings)
@@ -471,14 +477,14 @@ Review all public APIs for complete doc comments. Priority: `Stanza`, `SelectQue
   - Run on Dart stable + beta
 - Dependabot for dependency updates
 
-#### 3.2 — pub.dev Publishing
+#### 3.3 — pub.dev Publishing
 
 - Verify `pubspec.yaml` metadata (homepage, repository, issue_tracker, topics)
 - Run `dart pub publish --dry-run`
 - Add pub.dev topics: `postgresql`, `query-builder`, `database`, `sql`, `codegen`
 - Version: `0.1.0` for initial publish (signal pre-1.0 API instability)
 
-#### 3.3 — Streaming Results
+#### 3.4 — Streaming Results
 
 For large result sets, expose postgres v3's cursor support:
 
@@ -491,7 +497,7 @@ await for (final row in stanza.stream<Animal>(selectQuery)) {
 
 This wraps `pool.execute()` with `queryMode: QueryMode.simple` or uses `Cursor` depending on postgres v3's streaming API. Lower priority — most applications don't need this until they're processing thousands of rows.
 
-#### 3.4 — Connection Configuration
+#### 3.5 — Connection Configuration
 
 Expose additional `pg.PoolSettings` and `pg.ConnectionSettings` options:
 
@@ -511,8 +517,8 @@ Stanza.tcp(creds,
 
 | Phase | Items | Estimated Scope | Result |
 |-------|-------|----------------|--------|
-| **1: Core SQL** | JOINs, RETURNING, batch insert, upsert, IN/BETWEEN, DISTINCT/HAVING | ~800-1000 new LOC | Handles real queries |
-| **2: Production** | Raw SQL, SSL, test suite, documentation | ~1500+ new LOC (mostly tests) | Publishable with confidence |
-| **3: Ecosystem** | CI, pub.dev, streaming, config | ~300 new LOC + config | Discoverable and maintainable |
+| **1: Foundation & Core Blockers** | Tests for existing code, JOINs, RETURNING, IN/BETWEEN, raw SQL, SSL | ~1200-1500 new LOC | Handles real queries, never stuck |
+| **2: SQL Completeness** | Batch insert, upsert, DISTINCT/HAVING | ~500-700 new LOC | Rarely need raw SQL |
+| **3: Publishing & Ecosystem** | Docs, CI, pub.dev, streaming, config | ~300 new LOC + config | Discoverable and maintainable |
 
-Phase 1 is the minimum to make stanza genuinely useful. Phase 2 is the minimum to publish responsibly. Phase 3 is about growth and long-term viability.
+Phase 1 is the minimum to make stanza genuinely useful — tests provide confidence, core SQL features handle real queries, and the raw SQL escape hatch plus SSL ensure users are never blocked. Phase 2 rounds out the SQL feature set. Phase 3 is about polish and long-term viability.
