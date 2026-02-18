@@ -107,8 +107,14 @@ final q = SelectQuery(Animal.$table)
 ### INSERT
 
 ```dart
+// Single entity:
 final q = InsertQuery(Animal.$table)
   ..insertEntity(animal)
+  ..returningStar();
+
+// Batch insert:
+final q = InsertQuery(Animal.$table)
+  ..insertEntities<Animal>([tiger, eagle, snake])
   ..returningStar();
 ```
 

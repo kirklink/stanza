@@ -185,9 +185,14 @@ var q = InsertQuery(table)
   ..insert(table.name, 'Tiger')
   ..insert(table.legs, 4)
   ..insert(table.color, 'orange');
+
+// Batch insert (multiple entities in one statement):
+var q = InsertQuery(table)
+  ..insertEntities<Animal>([tiger, eagle, snake]);
+// Produces: INSERT INTO mammal (cols) VALUES (...), (...), (...)
 ```
 
-Fields marked `readOnly` are automatically excluded from `insertEntity`.
+Fields marked `readOnly` are automatically excluded from `insertEntity` and `insertEntities`.
 
 ### UPDATE queries
 

@@ -286,6 +286,46 @@ void main() {
       final del = DeleteQuery(t)..where(t.name).matches('Penguin', caseSensitive: true);
       await stanza.execute(del);
     });
+
+    test('batch insert multiple entities', () async {
+      final animals = [
+        Animal()..name = 'Parrot'..legs = 2..color = 'red'..ownerId = 1,
+        Animal()..name = 'Octopus'..legs = 8..color = 'purple'..ownerId = 2,
+        Animal()..name = 'Ant'..legs = 6..color = 'black'..ownerId = 1,
+      ];
+      final q = InsertQuery(t)..insertEntities<Animal>(animals);
+      await stanza.execute(q);
+
+      final check = SelectQuery(t)
+        ..selectStar()
+        ..where(t.name).isIn(['Parrot', 'Octopus', 'Ant']);
+      final result = await stanza.execute<Animal>(check);
+      expect(result.length, 3);
+
+      // Clean up
+      final del = DeleteQuery(t)
+        ..where(t.name).isIn(['Parrot', 'Octopus', 'Ant']);
+      await stanza.execute(del);
+    });
+
+    test('batch insert with RETURNING', () async {
+      final animals = [
+        Animal()..name = 'Frog'..legs = 4..color = 'green'..ownerId = 1,
+        Animal()..name = 'Crab'..legs = 10..color = 'red'..ownerId = 2,
+      ];
+      final q = InsertQuery(t)
+        ..insertEntities<Animal>(animals)
+        ..returningStar();
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 2);
+      final names = result.entities.map((a) => a.name).toSet();
+      expect(names, containsAll(['Frog', 'Crab']));
+
+      // Clean up
+      final del = DeleteQuery(t)
+        ..where(t.name).isIn(['Frog', 'Crab']);
+      await stanza.execute(del);
+    });
   });
 
   group('UPDATE', () {

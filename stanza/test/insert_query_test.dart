@@ -70,4 +70,85 @@ void main() {
       expect(forked.substitutionValues, q.substitutionValues);
     });
   });
+
+  group('InsertQuery batch', () {
+    test('insertEntities with multiple entities', () {
+      final animals = [
+        Animal()..name = 'Tiger'..legs = 4..color = 'orange',
+        Animal()..name = 'Eagle'..legs = 2..color = 'brown',
+        Animal()..name = 'Snake'..legs = 0..color = 'green',
+      ];
+      final q = InsertQuery(t)..insertEntities<Animal>(animals);
+      final stmt = q.statement();
+      expect(stmt, startsWith('INSERT INTO mammal'));
+      // Should have 3 value tuples separated by ), (
+      expect('), ('.allMatches(stmt).length, 2);
+      // 3 entities x 3 fields each = 9 substitution values
+      expect(q.substitutionValues.length, 9);
+      expect(q.substitutionValues.values, contains('Tiger'));
+      expect(q.substitutionValues.values, contains('Eagle'));
+      expect(q.substitutionValues.values, contains('Snake'));
+    });
+
+    test('insertEntities with single entity', () {
+      final animals = [
+        Animal()..name = 'Tiger'..legs = 4..color = 'orange',
+      ];
+      final q = InsertQuery(t)..insertEntities<Animal>(animals);
+      final stmt = q.statement();
+      expect(stmt, contains('INSERT INTO mammal'));
+      expect(stmt, contains('VALUES ('));
+      expect(q.substitutionValues.length, 3);
+    });
+
+    test('insertEntities with empty list throws', () {
+      expect(
+        () => InsertQuery(t).insertEntities<Animal>([]),
+        throwsA(isA<StanzaException>()),
+      );
+    });
+
+    test('insertEntities type mismatch throws', () {
+      expect(
+        () => InsertQuery(t).insertEntities<String>(['not an animal']),
+        throwsA(isA<StanzaException>()),
+      );
+    });
+
+    test('insertEntities with RETURNING', () {
+      final animals = [
+        Animal()..name = 'Tiger'..legs = 4..color = 'orange',
+        Animal()..name = 'Eagle'..legs = 2..color = 'brown',
+      ];
+      final q = InsertQuery(t)
+        ..insertEntities<Animal>(animals)
+        ..returningStar();
+      final stmt = q.statement();
+      expect(stmt, contains('VALUES'));
+      expect(stmt, endsWith('RETURNING *'));
+    });
+
+    test('fork preserves batch state', () {
+      final animals = [
+        Animal()..name = 'Tiger'..legs = 4..color = 'orange',
+        Animal()..name = 'Eagle'..legs = 2..color = 'brown',
+      ];
+      final q = InsertQuery(t)..insertEntities<Animal>(animals);
+      final forked = q.fork();
+      expect(forked.statement(), q.statement());
+      expect(forked.substitutionValues, q.substitutionValues);
+    });
+
+    test('fork is independent for batch', () {
+      final q = InsertQuery(t)
+        ..insertEntities<Animal>([
+          Animal()..name = 'Tiger'..legs = 4..color = 'orange',
+        ]);
+      final original = q.statement();
+      final forked = q.fork();
+      forked.returningStar();
+      expect(forked.statement(), contains('RETURNING *'));
+      expect(original, isNot(contains('RETURNING')));
+    });
+  });
 }

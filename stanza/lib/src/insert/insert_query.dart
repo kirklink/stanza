@@ -41,6 +41,25 @@ class InsertQuery extends Query with ReturningClause {
     });
   }
 
+  /// Insert multiple entities in a single batch statement.
+  ///
+  /// Produces `INSERT INTO table (cols) VALUES (...), (...), (...)`.
+  /// Throws [StanzaException] if [entities] is empty or the type doesn't match.
+  void insertEntities<T>(List<T> entities) {
+    if (entities.isEmpty) {
+      throw StanzaException(
+          'insertEntities() requires at least one entity.');
+    }
+    if (table.$type != T) {
+      throw StanzaException(
+          'Mismatch. The entity is Type $T. The table is type ${table.$type}');
+    }
+    for (final entity in entities) {
+      final map = table.toDb(entity);
+      _insert.addRow(map, this);
+    }
+  }
+
   /// Reproduce a partial query to use in a loop or other dynamic pattern.
   @override
   InsertQuery fork() {
