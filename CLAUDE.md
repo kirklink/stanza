@@ -116,6 +116,22 @@ final q = InsertQuery(Animal.$table)
 final q = InsertQuery(Animal.$table)
   ..insertEntities<Animal>([tiger, eagle, snake])
   ..returningStar();
+
+// Upsert (ON CONFLICT DO UPDATE):
+final q = InsertQuery(Animal.$table)
+  ..insertEntity(animal)
+  ..onConflict(
+    target: [Animal.$table.name],
+    doUpdate: (set) => set
+      ..column(Animal.$table.color).string('updated')
+      ..column(Animal.$table.legs).integer(4),
+  )
+  ..returningStar();
+
+// ON CONFLICT DO NOTHING:
+final q = InsertQuery(Animal.$table)
+  ..insertEntity(animal)
+  ..onConflictDoNothing(target: [Animal.$table.name]);
 ```
 
 ### UPDATE

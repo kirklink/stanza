@@ -6,6 +6,7 @@ export 'src/select/select_query.dart';
 export 'src/select/join_clause.dart';
 export 'src/update/update_query.dart';
 export 'src/insert/insert_query.dart';
+export 'src/insert/conflict_clause.dart';
 export 'src/delete/delete_query.dart';
 export 'src/query_result.dart';
 export 'src/stanza_exception.dart';

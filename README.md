@@ -194,6 +194,28 @@ var q = InsertQuery(table)
 
 Fields marked `readOnly` are automatically excluded from `insertEntity` and `insertEntities`.
 
+### Upsert (ON CONFLICT)
+
+```dart
+// Insert or update on conflict:
+var q = InsertQuery(table)
+  ..insertEntity<Animal>(animal)
+  ..onConflict(
+    target: [table.name],  // conflict column(s) — must have a unique constraint
+    doUpdate: (set) => set
+      ..column(table.color).string('updated-orange')
+      ..column(table.legs).integer(4),
+  )
+  ..returningStar();
+
+// Insert or skip on conflict:
+var q = InsertQuery(table)
+  ..insertEntity<Animal>(animal)
+  ..onConflictDoNothing(target: [table.name]);
+```
+
+The `doUpdate` callback receives a `ConflictSetBuilder` with the same typed setters as UPDATE queries (`.string()`, `.integer()`, `.number()`, etc.).
+
 ### UPDATE queries
 
 ```dart

@@ -151,7 +151,7 @@ void main() {
     await stanza.rawExecute('''
       CREATE TABLE test_animal (
         id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
+        name TEXT NOT NULL UNIQUE,
         number_of_legs INT NOT NULL,
         color TEXT NOT NULL,
         owner_id INT REFERENCES test_owner(id)
@@ -324,6 +324,96 @@ void main() {
       // Clean up
       final del = DeleteQuery(t)
         ..where(t.name).isIn(['Frog', 'Crab']);
+      await stanza.execute(del);
+    });
+  });
+
+  group('ON CONFLICT (upsert)', () {
+    test('DO NOTHING skips duplicate', () async {
+      // Tiger already exists from seed data
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..insert(t.legs, 100)
+        ..insert(t.color, 'blue')
+        ..onConflictDoNothing(target: [t.name]);
+      await stanza.execute(q);
+
+      // Verify Tiger is unchanged
+      final check = SelectQuery(t)
+        ..selectStar()
+        ..where(t.name).matches('Tiger', caseSensitive: true);
+      final result = await stanza.execute<Animal>(check);
+      expect(result.length, 1);
+      expect(result.first!.value!.legs, 4); // unchanged
+      expect(result.first!.value!.color, 'orange'); // unchanged
+    });
+
+    test('DO UPDATE SET updates on conflict', () async {
+      // Tiger already exists from seed data
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..insert(t.legs, 4)
+        ..insert(t.color, 'white')
+        ..onConflict(
+          target: [t.name],
+          doUpdate: (set) => set..column(t.color).string('white-striped'),
+        );
+      await stanza.execute(q);
+
+      // Verify Tiger's color was updated
+      final check = SelectQuery(t)
+        ..selectStar()
+        ..where(t.name).matches('Tiger', caseSensitive: true);
+      final result = await stanza.execute<Animal>(check);
+      expect(result.length, 1);
+      expect(result.first!.value!.color, 'white-striped');
+
+      // Restore original color
+      final restore = UpdateQuery(t)
+        ..column(t.color).string('orange')
+        ..where(t.name).matches('Tiger', caseSensitive: true);
+      await stanza.execute(restore);
+    });
+
+    test('DO UPDATE with RETURNING', () async {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..insert(t.legs, 4)
+        ..insert(t.color, 'silver')
+        ..onConflict(
+          target: [t.name],
+          doUpdate: (set) => set..column(t.color).string('silver'),
+        )
+        ..returningStar();
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 1);
+      expect(result.first!.value!.name, 'Tiger');
+      expect(result.first!.value!.color, 'silver');
+
+      // Restore
+      final restore = UpdateQuery(t)
+        ..column(t.color).string('orange')
+        ..where(t.name).matches('Tiger', caseSensitive: true);
+      await stanza.execute(restore);
+    });
+
+    test('DO NOTHING inserts new row when no conflict', () async {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Dolphin')
+        ..insert(t.legs, 0)
+        ..insert(t.color, 'grey')
+        ..onConflictDoNothing(target: [t.name]);
+      await stanza.execute(q);
+
+      final check = SelectQuery(t)
+        ..selectStar()
+        ..where(t.name).matches('Dolphin', caseSensitive: true);
+      final result = await stanza.execute<Animal>(check);
+      expect(result.length, 1);
+
+      // Clean up
+      final del = DeleteQuery(t)
+        ..where(t.name).matches('Dolphin', caseSensitive: true);
       await stanza.execute(del);
     });
   });

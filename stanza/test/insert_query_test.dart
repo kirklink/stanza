@@ -151,4 +151,96 @@ void main() {
       expect(original, isNot(contains('RETURNING')));
     });
   });
+
+  group('InsertQuery ON CONFLICT', () {
+    test('onConflictDoNothing generates DO NOTHING', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..onConflictDoNothing(target: [t.name]);
+      final stmt = q.statement();
+      expect(stmt, contains('ON CONFLICT (name) DO NOTHING'));
+    });
+
+    test('onConflict DO UPDATE SET generates correct SQL', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..insert(t.legs, 4)
+        ..insert(t.color, 'orange')
+        ..onConflict(
+          target: [t.name],
+          doUpdate: (set) => set
+            ..column(t.color).string('updated-orange')
+            ..column(t.legs).integer(4),
+        );
+      final stmt = q.statement();
+      expect(stmt, contains('ON CONFLICT (name) DO UPDATE SET'));
+      expect(stmt, contains('color ='));
+      expect(stmt, contains('number_of_legs ='));
+      expect(q.substitutionValues.values, contains('updated-orange'));
+    });
+
+    test('onConflict with multiple target fields', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..onConflictDoNothing(target: [t.name, t.color]);
+      final stmt = q.statement();
+      expect(stmt, contains('ON CONFLICT (name, color) DO NOTHING'));
+    });
+
+    test('onConflict with RETURNING', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..insert(t.color, 'orange')
+        ..onConflict(
+          target: [t.name],
+          doUpdate: (set) => set..column(t.color).string('updated'),
+        )
+        ..returningStar();
+      final stmt = q.statement();
+      expect(stmt, contains('DO UPDATE SET'));
+      expect(stmt, endsWith('RETURNING *'));
+    });
+
+    test('onConflict with insertEntity', () {
+      final animal = Animal()
+        ..name = 'Tiger'
+        ..legs = 4
+        ..color = 'orange';
+      final q = InsertQuery(t)
+        ..insertEntity<Animal>(animal)
+        ..onConflictDoNothing(target: [t.name]);
+      final stmt = q.statement();
+      expect(stmt, contains('INSERT INTO mammal'));
+      expect(stmt, contains('ON CONFLICT (name) DO NOTHING'));
+    });
+
+    test('ON CONFLICT comes after VALUES, before RETURNING', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..onConflictDoNothing(target: [t.name])
+        ..returningStar();
+      final stmt = q.statement();
+      final valuesIdx = stmt.indexOf('VALUES');
+      final conflictIdx = stmt.indexOf('ON CONFLICT');
+      final retIdx = stmt.indexOf('RETURNING');
+      expect(valuesIdx, lessThan(conflictIdx));
+      expect(conflictIdx, lessThan(retIdx));
+    });
+
+    test('fork preserves ON CONFLICT', () {
+      final q = InsertQuery(t)
+        ..insert(t.name, 'Tiger')
+        ..onConflictDoNothing(target: [t.name]);
+      final forked = q.fork();
+      expect(forked.statement(), contains('ON CONFLICT'));
+    });
+
+    test('fork is independent for ON CONFLICT', () {
+      final q = InsertQuery(t)..insert(t.name, 'Tiger');
+      final forked = q.fork();
+      forked.onConflictDoNothing(target: [t.name]);
+      expect(forked.statement(), contains('ON CONFLICT'));
+      expect(q.statement(), isNot(contains('ON CONFLICT')));
+    });
+  });
 }
