@@ -1,10 +1,18 @@
 name: stanza
 homepage: "https://github.com/kirklink/stanza"
 repository: "https://github.com/kirklink/stanza"
+issue_tracker: "https://github.com/kirklink/stanza/issues"
 description: >-
-  Library for building PostgreSQL queries in a Dart-y, type safe syntax
-  that converts between Dart classes and PostgreSQL tables.
+  A type-safe PostgreSQL query builder for Dart with code generation.
+  Fluent API for SELECT, INSERT, UPDATE, DELETE with parameterized queries,
+  JOINs, RETURNING, aggregates, and typed result mapping.
 version: 0.1.0
+topics:
+  - postgresql
+  - query-builder
+  - database
+  - sql
+  - codegen
 environment:
   sdk: '>=3.0.0 <4.0.0'
 dependencies:
