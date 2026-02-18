@@ -134,6 +134,8 @@ final q = DeleteQuery(Animal.$table)
 
 - **Numeric**: `isEqualTo(num)`, `isGreaterThan(num)`, `isGreaterThanOrEqualTo(num)`, `isLessThan(num)`, `isLessThanOrEqualTo(num)`
 - **String**: `matches(String, {caseSensitive})`, `startsWith(String)`, `endsWith(String)`, `contains(String)`
+- **Set membership**: `isIn(List<Object>)`, `isNotIn(List<Object>)`
+- **Range**: `isBetween(Object low, Object high)`
 - **Boolean**: `isTrue()`, `isFalse()`
 - **Null**: `isNull()`, `isNotNull()`
 - **DateTime**: `isBefore(DateTime)`, `isAfter(DateTime)`, `isOn(DateTime)`

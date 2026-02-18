@@ -238,6 +238,9 @@ Each returns a `WhereOperation` with these comparison methods:
 | `.contains(s, {caseSensitive})` | `String` | `LIKE '%s%'` |
 | `.isTrue()` | — | `= TRUE` |
 | `.isFalse()` | — | `= FALSE` |
+| `.isIn(list)` | `List<Object>` | `IN (@v0, @v1, ...)` |
+| `.isNotIn(list)` | `List<Object>` | `NOT IN (@v0, @v1, ...)` |
+| `.isBetween(low, high)` | `Object, Object` | `BETWEEN @low AND @high` |
 | `.isNull()` | — | `IS NULL` |
 | `.isNotNull()` | — | `IS NOT NULL` |
 | `.isBefore(dt)` | `DateTime` | `< dt` |
@@ -246,6 +249,8 @@ Each returns a `WhereOperation` with these comparison methods:
 | `.raw(sql)` | `String` | raw SQL condition |
 
 **Note**: `.isEqualTo()` accepts `num` only. For string equality, use `.matches()` with `caseSensitive: true`.
+
+**Note**: `.isIn()` and `.isNotIn()` throw `StanzaException` if passed an empty list.
 
 Brackets can group conditions:
 

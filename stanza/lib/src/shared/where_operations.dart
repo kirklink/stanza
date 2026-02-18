@@ -1,5 +1,6 @@
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/shared/where_package.dart';
+import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/value_substitution.dart';
 
 /// The set of operations that can be performed on a [Field] in a conditional where clause.
@@ -192,6 +193,60 @@ class WhereOperation {
     _comparable = sub.token;
     _fieldPostModifier = '::date';
     return _attach(substitution: sub);
+  }
+
+  /// If the field's value is in the given list.
+  ///
+  /// Produces `field IN (@val_0, @val_1, ...)` with parameterized values.
+  /// Throws [StanzaException] if [values] is empty.
+  Query isIn(List<Object> values) {
+    if (values.isEmpty) {
+      throw StanzaException('isIn() requires at least one value.');
+    }
+    final tokens = <String>[];
+    for (var i = 0; i < values.length; i++) {
+      final sub = ValueSub('${_subKeyBase}_in_$i', values[i]);
+      _where.source.addSubstitution(sub);
+      tokens.add(sub.token);
+    }
+    _raw =
+        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
+    _where.attachment.add('${_where.operation} $_raw');
+    return _where.source;
+  }
+
+  /// If the field's value is not in the given list.
+  ///
+  /// Produces `field NOT IN (@val_0, @val_1, ...)` with parameterized values.
+  /// Throws [StanzaException] if [values] is empty.
+  Query isNotIn(List<Object> values) {
+    if (values.isEmpty) {
+      throw StanzaException('isNotIn() requires at least one value.');
+    }
+    final tokens = <String>[];
+    for (var i = 0; i < values.length; i++) {
+      final sub = ValueSub('${_subKeyBase}_notin_$i', values[i]);
+      _where.source.addSubstitution(sub);
+      tokens.add(sub.token);
+    }
+    _raw =
+        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} NOT IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
+    _where.attachment.add('${_where.operation} $_raw');
+    return _where.source;
+  }
+
+  /// If the field's value is between [low] and [high] (inclusive).
+  ///
+  /// Produces `field BETWEEN @low AND @high` with parameterized values.
+  Query isBetween(Object low, Object high) {
+    final subLow = ValueSub('${_subKeyBase}_between_low', low);
+    final subHigh = ValueSub('${_subKeyBase}_between_high', high);
+    _where.source.addSubstitution(subLow);
+    _where.source.addSubstitution(subHigh);
+    _raw =
+        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} BETWEEN ${subLow.token} AND ${subHigh.token}${_where.closeBracket ? ')' : ''}';
+    _where.attachment.add('${_where.operation} $_raw');
+    return _where.source;
   }
 
   /// A query condition supplied as a raw string.

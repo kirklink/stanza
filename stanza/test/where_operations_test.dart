@@ -210,6 +210,106 @@ void main() {
     });
   });
 
+  group('WhereOperation - IN', () {
+    test('isIn with integers', () {
+      final q = selectWith((q) => q.where(t.legs).isIn([2, 4, 8]));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.number_of_legs IN ('));
+      expect(stmt, contains(', '));
+      expect(q.substitutionValues.values, containsAll([2, 4, 8]));
+    });
+
+    test('isIn with strings', () {
+      final q =
+          selectWith((q) => q.where(t.color).isIn(['orange', 'brown']));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.color IN ('));
+      expect(q.substitutionValues.values, containsAll(['orange', 'brown']));
+    });
+
+    test('isIn with single value', () {
+      final q = selectWith((q) => q.where(t.legs).isIn([4]));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.number_of_legs IN (@'));
+      expect(q.substitutionValues.values, contains(4));
+    });
+
+    test('isIn with empty list throws', () {
+      expect(
+        () => selectWith((q) => q.where(t.legs).isIn([])),
+        throwsA(isA<StanzaException>()),
+      );
+    });
+
+    test('isNotIn with integers', () {
+      final q = selectWith((q) => q.where(t.legs).isNotIn([0, 1]));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.number_of_legs NOT IN ('));
+      expect(q.substitutionValues.values, containsAll([0, 1]));
+    });
+
+    test('isNotIn with empty list throws', () {
+      expect(
+        () => selectWith((q) => q.where(t.legs).isNotIn([])),
+        throwsA(isA<StanzaException>()),
+      );
+    });
+
+    test('isIn values are parameterized not interpolated', () {
+      final q = selectWith(
+          (q) => q.where(t.name).isIn(["'; DROP TABLE mammal; --"]));
+      final stmt = q.statement();
+      expect(stmt, isNot(contains('DROP TABLE')));
+      expect(stmt, contains('IN (@'));
+    });
+
+    test('isIn combined with AND', () {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.color).isIn(['orange', 'brown'])
+        ..and(t.legs).isGreaterThan(2);
+      final stmt = q.statement();
+      expect(stmt, contains('IN ('));
+      expect(stmt, contains('AND'));
+    });
+  });
+
+  group('WhereOperation - BETWEEN', () {
+    test('isBetween with integers', () {
+      final q = selectWith((q) => q.where(t.legs).isBetween(2, 8));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.number_of_legs BETWEEN'));
+      expect(stmt, contains('AND'));
+      expect(q.substitutionValues.values, containsAll([2, 8]));
+    });
+
+    test('isBetween with dates', () {
+      final low = DateTime(2024, 1, 1);
+      final high = DateTime(2024, 12, 31);
+      final q = selectWith((q) => q.where(t.color).isBetween(low, high));
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.color BETWEEN'));
+      expect(q.substitutionValues.values, containsAll([low, high]));
+    });
+
+    test('isBetween combined with AND', () {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.legs).isBetween(2, 8)
+        ..and(t.color).matches('brown');
+      final stmt = q.statement();
+      expect(stmt, contains('BETWEEN'));
+      // matches() defaults to caseSensitive: false, which wraps field in LOWER()
+      expect(stmt, contains('AND LOWER(mammal.color)'));
+    });
+
+    test('isBetween values are parameterized', () {
+      final q = selectWith((q) => q.where(t.legs).isBetween(1, 10));
+      final stmt = q.statement();
+      expect(stmt, matches(RegExp(r'BETWEEN @.*AND @')));
+    });
+  });
+
   group('WhereOperation - SQL injection safety', () {
     test('string values are parameterized not interpolated', () {
       final q = selectWith(

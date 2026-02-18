@@ -559,6 +559,56 @@ void main() {
     });
   });
 
+  group('IN / NOT IN / BETWEEN', () {
+    test('isIn returns matching rows', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.color).isIn(['orange', 'green']);
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 2);
+      final names = result.entities.map((a) => a.name).toSet();
+      expect(names, containsAll(['Tiger', 'Snake']));
+    });
+
+    test('isNotIn excludes matching rows', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.color).isNotIn(['orange', 'green']);
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 2);
+      final names = result.entities.map((a) => a.name).toSet();
+      expect(names, containsAll(['Eagle', 'Jellyfish']));
+    });
+
+    test('isIn with numeric values', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.legs).isIn([0, 2]);
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 3);
+      final names = result.entities.map((a) => a.name).toSet();
+      expect(names, containsAll(['Eagle', 'Snake', 'Jellyfish']));
+    });
+
+    test('isBetween returns rows in range (inclusive)', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.legs).isBetween(1, 4);
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 2);
+      final names = result.entities.map((a) => a.name).toSet();
+      expect(names, containsAll(['Tiger', 'Eagle']));
+    });
+
+    test('isBetween excludes out-of-range rows', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.legs).isBetween(5, 100);
+      final result = await stanza.execute<Animal>(q);
+      expect(result.length, 0);
+    });
+  });
+
   group('safety', () {
     test('delete without where throws StanzaException', () async {
       expect(
