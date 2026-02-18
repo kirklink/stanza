@@ -44,6 +44,30 @@ class AnimalTable extends Table<Animal> {
       'color': instance.color,
     };
   }
+
+  // --- BelongsTo: Owner via ownerId (mimics generated code) ---
+
+  List<Field> get _ownerJoinFields => [
+        Field('owner', 'id')..rename('owner__id'),
+        Field('owner', 'name')..rename('owner__name'),
+      ];
+
+  void innerJoinOwner(SelectQuery q) {
+    q.selectFields(_ownerJoinFields);
+    q.innerJoin(Owner.$table).on(ownerId, Field('owner', 'id'));
+  }
+
+  void leftJoinOwner(SelectQuery q) {
+    q.selectFields(_ownerJoinFields);
+    q.leftJoin(Owner.$table).on(ownerId, Field('owner', 'id'));
+  }
+
+  Owner? ownerFromRow(Map<String, dynamic> row) {
+    if (row['owner__id'] == null) return null;
+    return Owner()
+      ..id = row['owner__id'] as int
+      ..name = row['owner__name'] as String;
+  }
 }
 
 /// Owner entity for join testing.

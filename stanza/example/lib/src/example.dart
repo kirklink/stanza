@@ -3,6 +3,17 @@ import 'package:stanza/stanza.dart';
 
 part 'example.g.dart';
 
+@StanzaEntity(snakeCase: true)
+class Owner {
+  @StanzaField(readOnly: true)
+  late int id;
+  late String name;
+
+  Owner();
+
+  static final _$OwnerTable $table = _$OwnerTable();
+}
+
 @StanzaEntity(name: 'mammal', snakeCase: true)
 class Animal {
   @StanzaField(readOnly: true)
@@ -12,6 +23,9 @@ class Animal {
   late int legs;
   late String color;
   late DateTime createdAt;
+
+  @BelongsTo(Owner)
+  late int ownerId;
 
   Animal();
 
@@ -56,6 +70,18 @@ void main() async {
     await session.execute(insertQuery);
     return session.execute<Animal>(selectQuery);
   });
+
+  // Join query with typed result mapping:
+  var joinQuery = SelectQuery(Animal.$table)..selectStar();
+  Animal.$table.innerJoinOwner(joinQuery);
+  joinQuery.where(Animal.$table.legs).isGreaterThan(2);
+
+  var joinResult = await stanza.execute<Animal>(joinQuery);
+  for (final row in joinResult.all) {
+    var a = row.value;
+    var owner = Animal.$table.ownerFromRow(row.aggregate);
+    print('${a?.name} belongs to ${owner?.name}');
+  }
 
   await stanza.close();
 }

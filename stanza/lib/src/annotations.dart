@@ -27,3 +27,25 @@ class StanzaField {
   final bool ignore;
   const StanzaField({this.name, this.readOnly = false, this.ignore = false});
 }
+
+/// Declares a belongs-to relationship on a foreign key field.
+///
+/// Place on the foreign key field (e.g., `ownerId`) to indicate it references
+/// another [StanzaEntity]. The code generator will produce typed join helpers
+/// and result extraction methods.
+///
+/// ```dart
+/// @StanzaEntity(name: 'mammal', snakeCase: true)
+/// class Animal {
+///   @BelongsTo(Owner)
+///   late int ownerId;
+/// }
+/// ```
+///
+/// [parent]: The type of the related entity (must be annotated with [StanzaEntity]).
+/// [targetKey]: The column name on the parent table to join against. Defaults to 'id'.
+class BelongsTo {
+  final Type parent;
+  final String targetKey;
+  const BelongsTo(this.parent, {this.targetKey = 'id'});
+}

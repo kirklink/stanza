@@ -221,4 +221,96 @@ void main() {
       });
     });
   });
+
+  group('BelongsTo join helpers', () {
+    test('innerJoinOwner generates correct SQL with aliased fields', () {
+      final q = SelectQuery(t)..selectStar();
+      t.innerJoinOwner(q);
+      final stmt = q.statement();
+      expect(stmt, contains('mammal.*'));
+      expect(stmt, contains('owner.id AS owner__id'));
+      expect(stmt, contains('owner.name AS owner__name'));
+      expect(stmt,
+          contains('INNER JOIN owner ON mammal.owner_id = owner.id'));
+    });
+
+    test('leftJoinOwner generates correct SQL', () {
+      final q = SelectQuery(t)..selectStar();
+      t.leftJoinOwner(q);
+      final stmt = q.statement();
+      expect(stmt,
+          contains('LEFT JOIN owner ON mammal.owner_id = owner.id'));
+      expect(stmt, contains('owner.id AS owner__id'));
+    });
+
+    test('join helper works with where on joined table', () {
+      final q = SelectQuery(t)..selectStar();
+      t.innerJoinOwner(q);
+      q.where(owner.name).matches('alice');
+      final stmt = q.statement();
+      expect(stmt, contains('INNER JOIN owner'));
+      expect(stmt, contains('WHERE LOWER(owner.name)'));
+      expect(q.substitutionValues.values.first, 'alice');
+    });
+
+    test('join helper works with where and order by', () {
+      final q = SelectQuery(t)..selectStar();
+      t.innerJoinOwner(q);
+      q
+        ..where(t.legs).isGreaterThan(2)
+        ..orderBy(t.name)
+        ..limit(10);
+      final stmt = q.statement();
+      expect(stmt, contains('INNER JOIN owner'));
+      expect(stmt, contains('WHERE mammal.number_of_legs >'));
+      expect(stmt, contains('ORDER BY mammal.name ASC'));
+      expect(stmt, contains('LIMIT 10'));
+    });
+
+    test('ownerFromRow extracts typed Owner from aliased columns', () {
+      final row = <String, dynamic>{
+        'id': 1,
+        'name': 'Tiger',
+        'number_of_legs': 4,
+        'color': 'orange',
+        'owner_id': 10,
+        'owner__id': 10,
+        'owner__name': 'Alice',
+      };
+      final result = t.ownerFromRow(row);
+      expect(result, isNotNull);
+      expect(result!.id, 10);
+      expect(result.name, 'Alice');
+    });
+
+    test('ownerFromRow returns null for LEFT JOIN miss', () {
+      final row = <String, dynamic>{
+        'id': 1,
+        'name': 'Tiger',
+        'number_of_legs': 4,
+        'color': 'orange',
+        'owner_id': null,
+        'owner__id': null,
+        'owner__name': null,
+      };
+      final result = t.ownerFromRow(row);
+      expect(result, isNull);
+    });
+
+    test('statement ordering with join helper', () {
+      final q = SelectQuery(t)..selectStar();
+      t.innerJoinOwner(q);
+      q
+        ..where(t.legs).isEqualTo(4)
+        ..limit(5);
+      final stmt = q.statement();
+      final fromIdx = stmt.indexOf('FROM mammal');
+      final joinIdx = stmt.indexOf('INNER JOIN');
+      final whereIdx = stmt.indexOf('WHERE');
+      final limitIdx = stmt.indexOf('LIMIT');
+      expect(fromIdx, lessThan(joinIdx));
+      expect(joinIdx, lessThan(whereIdx));
+      expect(whereIdx, lessThan(limitIdx));
+    });
+  });
 }
