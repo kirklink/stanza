@@ -2,9 +2,11 @@ name: stanza_example
 description: "Example of Stanza library usage."
 version: 0.0.1
 environment:
-  sdk: '>=2.1.0 <3.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 dependencies:
-  stanza: any
+  stanza:
+    path: ../
 dev_dependencies:
-  build_runner: any
-  stanza_builder: any
+  build_runner: ^2.4.0
+  stanza_builder:
+    path: ../../stanza_builder

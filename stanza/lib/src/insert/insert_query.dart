@@ -1,6 +1,5 @@
 import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
-import 'package:stanza/src/table.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/insert/insert_clause.dart';
 
@@ -8,18 +7,16 @@ import 'package:stanza/src/insert/insert_clause.dart';
 ///
 /// Takes the generated code table from a [StanzaEntity].
 class InsertQuery extends Query {
-  var _insert = InsertClause();
+  InsertClause _insert = InsertClause();
 
-  InsertQuery(Table table) : super(table);
+  InsertQuery(super.table);
 
   @override
   String statement({bool pretty = false}) {
-    var br = pretty ? '\n' : ' ';
-    var tableName = table?.$name ?? '';
-    var insert = _insert.clause ?? '';
-    var ibr = br;
-    var query = "INSERT INTO $tableName${ibr}$insert;";
-    return query;
+    final br = pretty ? '\n' : ' ';
+    final tableName = table.$name;
+    final insert = _insert.clause;
+    return 'INSERT INTO $tableName$br$insert';
   }
 
   /// Insert a [value] into a [field].
@@ -30,19 +27,19 @@ class InsertQuery extends Query {
   /// Insert a complete [StanzaEntity] into the database.
   void insertEntity<T>(T entity) {
     if (table.$type != T) {
-      var msg =
-          'Mismatch. The entity is Type $T. The table is type ${table.$type}';
-      throw StanzaException(msg);
+      throw StanzaException(
+          'Mismatch. The entity is Type $T. The table is type ${table.$type}');
     }
-    var map = table.toDb(entity);
+    final map = table.toDb(entity);
     map.forEach((k, v) {
       _insert.insert(k, v, this);
     });
   }
 
   /// Reproduce a partial query to use in a loop or other dynamic pattern.
+  @override
   InsertQuery fork() {
-    var q = InsertQuery(table);
+    final q = InsertQuery(table);
     q.importSubstitutionValues(substitutionValues);
     q._insert = _insert.clone();
     return q;

@@ -11,36 +11,35 @@ import 'package:stanza/src/table.dart';
 
 /// Base class for a select query.
 ///
-/// Takes the generated code table from a [StanzaEntity]
+/// Takes the generated code table from a [StanzaEntity].
 class SelectQuery extends Query with WhereClause {
-  var _selectClause = SelectClause();
+  SelectClause _selectClause = SelectClause();
   OrderByClause _orderByClause = OrderByClause();
-  GroupByClause _groupByClause;
-  LimitClause _limitClause;
-  OffsetClause _offsetClause;
+  GroupByClause? _groupByClause;
+  LimitClause? _limitClause;
+  OffsetClause? _offsetClause;
 
-  SelectQuery(Table table) : super(table);
+  SelectQuery(super.table);
 
+  @override
   String statement({bool pretty = false}) {
-    var br = pretty ? '\n' : ' ';
-    var select = _selectClause?.clause;
-    var where = whereClauses;
-    var limit = _limitClause?.clause;
-    var offset = _offsetClause?.clause;
-    var group = _groupByClause?.clause;
-    var order = _orderByClause?.clause;
+    final br = pretty ? '\n' : ' ';
+    final select = _selectClause.clause;
+    final where = whereClauses;
+    final limit = _limitClause?.clause;
+    final offset = _offsetClause?.clause;
+    final group = _groupByClause?.clause;
+    final order = _orderByClause.isEmpty ? null : _orderByClause.clause;
 
-    var buf = StringBuffer();
+    final buf = StringBuffer();
     buf.writeAll(['SELECT ', select]);
-    if (table != null) buf.writeAll([br, 'FROM ', table.$name]);
+    buf.writeAll([br, 'FROM ', table.$name]);
     if (where != null) buf.writeAll([br, where]);
     if (group != null) buf.writeAll([br, group]);
     if (order != null) buf.writeAll([br, order]);
     if (limit != null) buf.writeAll([br, limit]);
     if (offset != null) buf.writeAll([br, offset]);
-    buf.write(';');
-    var query = buf.toString();
-    return query;
+    return buf.toString();
   }
 
   /// Select a list of [Field]s from a [StanzaEntity] table.
@@ -49,11 +48,11 @@ class SelectQuery extends Query with WhereClause {
   }
 
   /// Select all the [Field]s from a [StanzaEntity] table.
-  void selectStar(Table table) {
-    _selectClause.star(table);
+  void selectStar([Table? t]) {
+    _selectClause.star(t ?? table);
   }
 
-  /// Group a select query by a list of [Field]s
+  /// Group a select query by a list of [Field]s.
   void groupBy(List<Field> fields) {
     if (_groupByClause != null) {
       throw StanzaException(
@@ -90,14 +89,16 @@ class SelectQuery extends Query with WhereClause {
   }
 
   /// Reproduce a partial query to use in a loop or other dynamic pattern.
+  @override
   SelectQuery fork() {
-    var q = SelectQuery(table);
+    final q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
     q._selectClause = _selectClause.clone();
     q._orderByClause = _orderByClause.clone();
     q._groupByClause = _groupByClause?.clone();
     q._limitClause = _limitClause?.clone();
     q._offsetClause = _offsetClause?.clone();
+    q.importWhereClauses(cloner());
     return q;
   }
 }

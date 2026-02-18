@@ -1,17 +1,15 @@
-/// Not to be used directly. Converts values to tokens that are used by the Postgresql database
-/// connection library.
+/// Not to be used directly. Converts values to tokens that are used by the PostgreSQL database
+/// connection library's named parameter substitution.
 class ValueSub {
-  String _key;
-  dynamic _value;
-  String _token;
+  static int _counter = 0;
 
-  ValueSub(String name, dynamic value) {
-    _key = name + '_' + value.hashCode.toString();
-    _token = '@' + name + '_' + value.hashCode.toString();
-    _value = value;
+  final String key;
+  final dynamic value;
+  final String token;
+
+  ValueSub(String name, this.value)
+      : key = '${name}_$_counter',
+        token = '@${name}_$_counter' {
+    _counter++;
   }
-
-  String get key => _key;
-  dynamic get value => _value;
-  String get token => _token;
 }
