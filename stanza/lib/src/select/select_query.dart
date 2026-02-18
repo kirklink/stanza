@@ -4,6 +4,7 @@ import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
 import 'package:stanza/src/select/join_clause.dart';
 import 'package:stanza/src/shared/where_clause.dart';
+import 'package:stanza/src/select/having_clause.dart';
 import 'package:stanza/src/select/group_by_clause.dart';
 import 'package:stanza/src/select/order_by_clause.dart';
 import 'package:stanza/src/select/limit_clause.dart';
@@ -13,13 +14,14 @@ import 'package:stanza/src/table.dart';
 /// Base class for a select query.
 ///
 /// Takes the generated code table from a [StanzaEntity].
-class SelectQuery extends Query with WhereClause {
+class SelectQuery extends Query with WhereClause, HavingClause {
   SelectClause _selectClause = SelectClause();
   List<JoinClause> _joins = [];
   OrderByClause _orderByClause = OrderByClause();
   GroupByClause? _groupByClause;
   LimitClause? _limitClause;
   OffsetClause? _offsetClause;
+  bool _distinct = false;
 
   SelectQuery(super.table);
 
@@ -34,17 +36,24 @@ class SelectQuery extends Query with WhereClause {
     final order = _orderByClause.isEmpty ? null : _orderByClause.clause;
 
     final buf = StringBuffer();
-    buf.writeAll(['SELECT ', select]);
+    buf.writeAll(['SELECT ', if (_distinct) 'DISTINCT ', select]);
     buf.writeAll([br, 'FROM ', table.$name]);
     for (final join in _joins) {
       buf.writeAll([br, join.clause]);
     }
+    final having = havingClauses;
     if (where != null) buf.writeAll([br, where]);
     if (group != null) buf.writeAll([br, group]);
+    if (having != null) buf.writeAll([br, having]);
     if (order != null) buf.writeAll([br, order]);
     if (limit != null) buf.writeAll([br, limit]);
     if (offset != null) buf.writeAll([br, offset]);
     return buf.toString();
+  }
+
+  /// Mark this query as SELECT DISTINCT.
+  void distinct() {
+    _distinct = true;
   }
 
   /// Select a list of [Field]s from a [StanzaEntity] table.
@@ -126,6 +135,7 @@ class SelectQuery extends Query with WhereClause {
   SelectQuery fork() {
     final q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
+    q._distinct = _distinct;
     q._selectClause = _selectClause.clone();
     q._joins = _joins.map((j) => j.clone()).toList();
     q._orderByClause = _orderByClause.clone();
@@ -133,6 +143,7 @@ class SelectQuery extends Query with WhereClause {
     q._limitClause = _limitClause?.clone();
     q._offsetClause = _offsetClause?.clone();
     q.importWhereClauses(cloner());
+    q.importHavingClauses(havingCloner());
     return q;
   }
 }

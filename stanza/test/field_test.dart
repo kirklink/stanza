@@ -59,5 +59,15 @@ void main() {
         ..rename('total');
       expect(f.sql, 'COUNT(mammal.id) AS total');
     });
+
+    test('expressionName without aggregate returns qualifiedName', () {
+      final f = Field('mammal', 'color');
+      expect(f.expressionName, 'mammal.color');
+    });
+
+    test('expressionName with aggregate wraps in operation', () {
+      final f = Field('mammal', 'id')..count();
+      expect(f.expressionName, 'COUNT(mammal.id)');
+    });
   });
 }

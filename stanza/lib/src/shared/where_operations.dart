@@ -19,7 +19,7 @@ class WhereOperation {
       _where.field.qualifiedName.replaceAll('.', '_');
 
   Query _attach({ValueSub? substitution}) {
-    final fieldName = _where.field.qualifiedName;
+    final fieldName = _where.field.expressionName;
     final comparison = _comparison ?? '';
     final comparable = _comparable ?? '';
     final preMod = _fieldPreModifier ?? '';
@@ -210,7 +210,7 @@ class WhereOperation {
       tokens.add(sub.token);
     }
     _raw =
-        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
+        '${_where.openBracket ? '(' : ''}${_where.field.expressionName} IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
     _where.attachment.add('${_where.operation} $_raw');
     return _where.source;
   }
@@ -230,7 +230,7 @@ class WhereOperation {
       tokens.add(sub.token);
     }
     _raw =
-        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} NOT IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
+        '${_where.openBracket ? '(' : ''}${_where.field.expressionName} NOT IN (${tokens.join(', ')})${_where.closeBracket ? ')' : ''}';
     _where.attachment.add('${_where.operation} $_raw');
     return _where.source;
   }
@@ -244,7 +244,7 @@ class WhereOperation {
     _where.source.addSubstitution(subLow);
     _where.source.addSubstitution(subHigh);
     _raw =
-        '${_where.openBracket ? '(' : ''}${_where.field.qualifiedName} BETWEEN ${subLow.token} AND ${subHigh.token}${_where.closeBracket ? ')' : ''}';
+        '${_where.openBracket ? '(' : ''}${_where.field.expressionName} BETWEEN ${subLow.token} AND ${subHigh.token}${_where.closeBracket ? ')' : ''}';
     _where.attachment.add('${_where.operation} $_raw');
     return _where.source;
   }

@@ -102,6 +102,18 @@ final q = SelectQuery(Animal.$table)
   ..and(Animal.$table.legs).isGreaterThan(2)
   ..orderBy(Animal.$table.name)
   ..limit(10);
+
+// DISTINCT:
+final q = SelectQuery(Animal.$table)
+  ..distinct()
+  ..selectFields([Animal.$table.color]);
+
+// GROUP BY + HAVING:
+final q = SelectQuery(Animal.$table)
+  ..selectFields([Animal.$table.color, Animal.$table.id..count()..rename('count')])
+  ..groupBy([Animal.$table.color])
+  ..having(Animal.$table.id..count()).isGreaterThan(2)
+  ..andHaving(Animal.$table.id..count()).isLessThan(100);
 ```
 
 ### INSERT

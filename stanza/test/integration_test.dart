@@ -739,6 +739,73 @@ void main() {
     });
   });
 
+  group('DISTINCT', () {
+    test('distinct returns unique values', () async {
+      // legs has duplicates: 0 (Snake, Jellyfish), 2 (Eagle), 4 (Tiger)
+      final q = SelectQuery(t)
+        ..distinct()
+        ..selectFields([t.legs])
+        ..orderBy(t.legs);
+      final result = await stanza.execute<Animal>(q);
+      // 3 distinct leg counts: 0, 2, 4
+      expect(result.length, 3);
+    });
+
+    test('without distinct returns all rows', () async {
+      final q = SelectQuery(t)
+        ..selectFields([t.legs])
+        ..orderBy(t.legs);
+      final result = await stanza.execute<Animal>(q);
+      // 4 rows (0, 0, 2, 4)
+      expect(result.length, 4);
+    });
+
+    test('distinct with where', () async {
+      final q = SelectQuery(t)
+        ..distinct()
+        ..selectFields([t.legs])
+        ..where(t.legs).isGreaterThan(0);
+      final result = await stanza.execute<Animal>(q);
+      // 2 distinct: 2, 4
+      expect(result.length, 2);
+    });
+  });
+
+  group('HAVING', () {
+    test('having filters groups by aggregate', () async {
+      // Group by legs, count each group, keep groups with count > 1
+      final q = SelectQuery(t)
+        ..selectFields([t.legs, t.id..count()..rename('cnt')])
+        ..groupBy([t.legs])
+        ..having(t.id..count()).isGreaterThan(1);
+      final result = await stanza.execute<Animal>(q);
+      // Only legs=0 has count>1 (Snake + Jellyfish)
+      expect(result.length, 1);
+      expect(result.first!.aggregate['cnt'], 2);
+    });
+
+    test('having with equality', () async {
+      final q = SelectQuery(t)
+        ..selectFields([t.legs, t.id..count()..rename('cnt')])
+        ..groupBy([t.legs])
+        ..having(t.id..count()).isEqualTo(1);
+      final result = await stanza.execute<Animal>(q);
+      // legs=2 (1 animal) and legs=4 (1 animal)
+      expect(result.length, 2);
+    });
+
+    test('group by + having + order by', () async {
+      final q = SelectQuery(t)
+        ..selectFields([t.legs, t.id..count()..rename('cnt')])
+        ..groupBy([t.legs])
+        ..having(t.id..count()).isGreaterThanOrEqualTo(1)
+        ..orderBy(t.legs);
+      final result = await stanza.execute<Animal>(q);
+      // All 3 groups (0, 2, 4) have count >= 1
+      expect(result.length, 3);
+    });
+  });
+
   group('safety', () {
     test('delete without where throws StanzaException', () async {
       expect(

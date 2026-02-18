@@ -28,6 +28,15 @@ class Field {
   /// The String representation of the corresponding table and field name 'tableName.fieldName'
   String get qualifiedName => '$_tableName.$_fieldName';
 
+  /// The expression form of this field, including any aggregate wrapper.
+  ///
+  /// Returns `COUNT(tableName.fieldName)` when an aggregate is set,
+  /// or just `tableName.fieldName` otherwise.
+  String get expressionName {
+    if (_operation != null) return '$_operation($qualifiedName)';
+    return qualifiedName;
+  }
+
   /// Rename a field to a corresponding database field name. PostgreSQL AS.
   ///
   /// Can also be used to rename calculated aggregate field names.

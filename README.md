@@ -169,7 +169,9 @@ var q = SelectQuery(table)
 
 - `selectStar()` — select all fields
 - `selectFields([...])` — select specific fields
+- `distinct()` — `SELECT DISTINCT` to eliminate duplicate rows
 - `groupBy([...])` — GROUP BY clause
+- `having(field)` / `andHaving(field)` / `orHaving(field)` — HAVING clause (filter after GROUP BY, typically with aggregates)
 - `orderBy(field, {descending: false})` — ORDER BY (can be called multiple times)
 - `limit(n)` / `offset(n)` — pagination
 
@@ -356,6 +358,30 @@ for (var r in result.all) {
 Available aggregates: `.count()`, `.sum()`, `.avg()`, `.min()`, `.max()`.
 
 Use `.rename('alias')` to give the aggregate a custom name in the result map.
+
+#### DISTINCT
+
+```dart
+var q = SelectQuery(table)
+  ..distinct()
+  ..selectFields([table.color]);
+```
+
+#### HAVING
+
+Use `having()` to filter groups by aggregate values (goes after `groupBy()`):
+
+```dart
+var q = SelectQuery(table)
+  ..selectFields([
+    table.color,
+    table.id.count().rename('animal_count'),
+  ])
+  ..groupBy([table.color])
+  ..having(table.id..count()).isGreaterThan(2);
+```
+
+Chain with `andHaving()` / `orHaving()` for multiple conditions. `having()` accepts the same comparison methods as `where()` (`.isEqualTo()`, `.isGreaterThan()`, etc.).
 
 ### transactions
 
