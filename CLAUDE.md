@@ -80,8 +80,15 @@ dart run build_runner build --delete-conflicting-outputs
 // From URL (Neon, Supabase, etc.)
 final stanza = Stanza.url('postgresql://user:pass@host/db?sslmode=require');
 
-// From credentials
-final stanza = Stanza.tcp(PostgresCredentials('host', 5432, 'db', 'user', 'pass'));
+// From credentials with connection config
+final stanza = Stanza.tcp(
+  PostgresCredentials('host', 5432, 'db', 'user', 'pass'),
+  maxConnections: 10,
+  sslMode: SslMode.require,
+  connectTimeout: Duration(seconds: 15),
+  queryTimeout: Duration(seconds: 30),
+  applicationName: 'my-app',
+);
 
 // Raw SQL (DDL, migrations)
 await stanza.rawExecute('CREATE TABLE ...');

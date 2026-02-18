@@ -121,9 +121,20 @@ var stanza = Stanza.url('postgresql://user:pass@host.neon.tech/db?sslmode=requir
 var creds = PostgresCredentials('localhost', 5432, 'mydb', 'user', 'password');
 var stanza = Stanza.tcp(creds, maxConnections: 10);
 
+// With full connection configuration:
+var stanza = Stanza.tcp(creds,
+  maxConnections: 25,
+  sslMode: SslMode.require,          // disable, require, or verifyFull
+  connectTimeout: Duration(seconds: 15),
+  queryTimeout: Duration(seconds: 30),
+  applicationName: 'my-app',         // visible in pg_stat_activity
+);
+
 // Unix socket:
 var stanza = Stanza.unix(creds, maxConnections: 10);
 ```
+
+`SslMode` is re-exported from `package:stanza/stanza.dart` — no need to import `package:postgres` directly.
 
 Stanza caches connection pools internally — calling the same constructor with the same connection details reuses the existing pool.
 

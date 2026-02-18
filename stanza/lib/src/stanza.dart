@@ -60,9 +60,17 @@ class Stanza {
   /// Create a Stanza instance using a TCP connection.
   ///
   /// [maxConnections]: Maximum number of connections in the pool (default: 25).
+  /// [sslMode]: SSL mode for the connection (disable, require, verifyFull).
+  /// [connectTimeout]: Maximum time to wait for a connection.
+  /// [queryTimeout]: Maximum time to wait for a query to complete.
+  /// [applicationName]: Application name shown in `pg_stat_activity`.
   factory Stanza.tcp(
     PostgresCredentials creds, {
     int maxConnections = 25,
+    pg.SslMode? sslMode,
+    Duration? connectTimeout,
+    Duration? queryTimeout,
+    String? applicationName,
   }) {
     final id = '${creds.host}:${creds.port}|${creds.db}';
     if (!_instances.containsKey(id)) {
@@ -78,6 +86,10 @@ class Stanza {
         ],
         settings: pg.PoolSettings(
           maxConnectionCount: maxConnections,
+          sslMode: sslMode,
+          connectTimeout: connectTimeout,
+          queryTimeout: queryTimeout,
+          applicationName: applicationName,
         ),
       );
       _instances[id] = Stanza._(pool);
@@ -88,9 +100,15 @@ class Stanza {
   /// Create a Stanza instance using a Unix socket connection.
   ///
   /// [maxConnections]: Maximum number of connections in the pool (default: 25).
+  /// [connectTimeout]: Maximum time to wait for a connection.
+  /// [queryTimeout]: Maximum time to wait for a query to complete.
+  /// [applicationName]: Application name shown in `pg_stat_activity`.
   factory Stanza.unix(
     PostgresCredentials creds, {
     int maxConnections = 25,
+    Duration? connectTimeout,
+    Duration? queryTimeout,
+    String? applicationName,
   }) {
     final id = 'unix:${creds.host}|${creds.db}';
     if (!_instances.containsKey(id)) {
@@ -107,6 +125,9 @@ class Stanza {
         ],
         settings: pg.PoolSettings(
           maxConnectionCount: maxConnections,
+          connectTimeout: connectTimeout,
+          queryTimeout: queryTimeout,
+          applicationName: applicationName,
         ),
       );
       _instances[id] = Stanza._(pool);
@@ -119,7 +140,8 @@ class Stanza {
   /// The URL format is: `postgresql://user:password@host:port/dbname?sslmode=require`
   ///
   /// This supports all parameters recognized by the postgres v3 package,
-  /// including `sslmode` (required for cloud providers like Neon).
+  /// including `sslmode`, `application_name`, `connect_timeout`, and
+  /// `query_timeout` as URL query parameters.
   /// Unrecognized query parameters (e.g. `channel_binding`) are stripped
   /// automatically for compatibility with various cloud providers.
   factory Stanza.url(String connectionUrl) {
