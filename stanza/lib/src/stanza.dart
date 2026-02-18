@@ -29,6 +29,18 @@ class StanzaSession {
     );
     return _toQueryResult<T>(result, query);
   }
+
+  /// Execute a raw SQL string within this session.
+  ///
+  /// Use for DDL statements, migrations, or queries not expressible
+  /// through the Stanza query builder.
+  Future<pg.Result> rawExecute(String sql,
+      {Map<String, dynamic>? parameters}) async {
+    return _session.execute(
+      pg.Sql.named(sql),
+      parameters: parameters,
+    );
+  }
 }
 
 /// The main class for creating and using the Stanza database interface.
@@ -102,6 +114,23 @@ class Stanza {
     return _instances[id]!;
   }
 
+  /// Create a Stanza instance from a connection URL string.
+  ///
+  /// The URL format is: `postgresql://user:password@host:port/dbname?sslmode=require`
+  ///
+  /// This supports all parameters recognized by the postgres v3 package,
+  /// including `sslmode` (required for cloud providers like Neon).
+  /// Unrecognized query parameters (e.g. `channel_binding`) are stripped
+  /// automatically for compatibility with various cloud providers.
+  factory Stanza.url(String connectionUrl) {
+    if (!_instances.containsKey(connectionUrl)) {
+      final sanitized = _sanitizeConnectionUrl(connectionUrl);
+      final pool = pg.Pool.withUrl(sanitized);
+      _instances[connectionUrl] = Stanza._(pool);
+    }
+    return _instances[connectionUrl]!;
+  }
+
   /// Retrieve a cached Stanza instance by its database reference.
   factory Stanza.getByDatabaseReference(
       String host, int port, String database) {
@@ -126,6 +155,18 @@ class Stanza {
       parameters: query.substitutionValues,
     );
     return _toQueryResult<T>(result, query);
+  }
+
+  /// Execute a raw SQL string.
+  ///
+  /// Use for DDL statements, migrations, or queries not expressible
+  /// through the Stanza query builder.
+  Future<pg.Result> rawExecute(String sql,
+      {Map<String, dynamic>? parameters}) async {
+    return _pool.execute(
+      pg.Sql.named(sql),
+      parameters: parameters,
+    );
   }
 
   /// Execute multiple queries on the same connection.
@@ -170,6 +211,39 @@ class Stanza {
   static List<String> get listInstances => _instances.keys.toList();
 
   static final _instances = <String, Stanza>{};
+}
+
+/// Query parameters recognized by the postgres v3 package.
+/// Unrecognized parameters (e.g. Neon's `channel_binding`) are stripped.
+const _supportedUrlParams = {
+  'application_name',
+  'client_encoding',
+  'connect_timeout',
+  'dbname',
+  'host',
+  'password',
+  'port',
+  'replication',
+  'sslcert',
+  'sslkey',
+  'sslmode',
+  'sslrootcert',
+  'user',
+  'username',
+  'query_timeout',
+  'max_connection_age',
+  'max_connection_count',
+  'max_session_use',
+  'max_query_count',
+};
+
+/// Strips query parameters not supported by the postgres v3 package.
+String _sanitizeConnectionUrl(String url) {
+  final uri = Uri.parse(url);
+  if (uri.queryParameters.isEmpty) return url;
+  final cleaned = Map.of(uri.queryParameters)
+    ..removeWhere((key, _) => !_supportedUrlParams.contains(key));
+  return uri.replace(queryParameters: cleaned).toString();
 }
 
 /// Checks that UPDATE/DELETE queries have WHERE clauses unless overridden.

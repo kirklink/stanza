@@ -1,12 +1,13 @@
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/shared/where_clause.dart';
+import 'package:stanza/src/shared/returning_clause.dart';
 import 'package:stanza/src/update/set_clause.dart';
 
 /// Base class for an update query.
 ///
 /// Takes the generated code table from a [StanzaEntity].
-class UpdateQuery extends Query with WhereClause {
+class UpdateQuery extends Query with WhereClause, ReturningClause {
   SetClause _setClause = SetClause();
 
   UpdateQuery(super.table);
@@ -18,9 +19,12 @@ class UpdateQuery extends Query with WhereClause {
     final where = whereClauses;
     final sett = _setClause.clause;
 
+    final ret = returningClause;
+
     final buf = StringBuffer();
     buf.writeAll(['UPDATE ', tableName, br, 'SET ', sett]);
     if (where != null) buf.writeAll([br, where]);
+    if (ret != null) buf.writeAll([br, ret]);
     return buf.toString();
   }
 
@@ -35,6 +39,7 @@ class UpdateQuery extends Query with WhereClause {
     q.importSubstitutionValues(substitutionValues);
     q._setClause = _setClause.clone();
     q.importWhereClauses(cloner());
+    q.importReturningClause(this);
     return q;
   }
 }

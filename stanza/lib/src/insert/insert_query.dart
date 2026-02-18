@@ -2,11 +2,12 @@ import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/insert/insert_clause.dart';
+import 'package:stanza/src/shared/returning_clause.dart';
 
 /// Base class for an insert query.
 ///
 /// Takes the generated code table from a [StanzaEntity].
-class InsertQuery extends Query {
+class InsertQuery extends Query with ReturningClause {
   InsertClause _insert = InsertClause();
 
   InsertQuery(super.table);
@@ -16,7 +17,11 @@ class InsertQuery extends Query {
     final br = pretty ? '\n' : ' ';
     final tableName = table.$name;
     final insert = _insert.clause;
-    return 'INSERT INTO $tableName$br$insert';
+    final ret = returningClause;
+
+    final buf = StringBuffer('INSERT INTO $tableName$br$insert');
+    if (ret != null) buf.writeAll([br, ret]);
+    return buf.toString();
   }
 
   /// Insert a [value] into a [field].
@@ -42,6 +47,7 @@ class InsertQuery extends Query {
     final q = InsertQuery(table);
     q.importSubstitutionValues(substitutionValues);
     q._insert = _insert.clone();
+    q.importReturningClause(this);
     return q;
   }
 }
