@@ -6,6 +6,8 @@ class Animal {
   String name = '';
   int legs = 0;
   String color = '';
+  int ownerId = 0;
+  int habitatId = 0;
 
   static final $table = AnimalTable();
 }
@@ -22,6 +24,8 @@ class AnimalTable extends Table<Animal> {
   Field get name => Field('mammal', 'name');
   Field get legs => Field('mammal', 'number_of_legs');
   Field get color => Field('mammal', 'color');
+  Field get ownerId => Field('mammal', 'owner_id');
+  Field get habitatId => Field('mammal', 'habitat_id');
 
   @override
   Animal fromDb(Map<String, dynamic> map) {
@@ -38,6 +42,74 @@ class AnimalTable extends Table<Animal> {
       'name': instance.name,
       'number_of_legs': instance.legs,
       'color': instance.color,
+    };
+  }
+}
+
+/// Owner entity for join testing.
+class Owner {
+  int id = 0;
+  String name = '';
+
+  static final $table = OwnerTable();
+}
+
+/// Mock owner table for join testing.
+class OwnerTable extends Table<Owner> {
+  @override
+  final String $name = 'owner';
+
+  @override
+  final Type $type = Owner;
+
+  Field get id => Field('owner', 'id');
+  Field get name => Field('owner', 'name');
+
+  @override
+  Owner fromDb(Map<String, dynamic> map) {
+    return Owner()
+      ..id = map['id'] as int
+      ..name = map['name'] as String;
+  }
+
+  @override
+  Map<String, dynamic> toDb(Owner instance) {
+    return <String, dynamic>{
+      'name': instance.name,
+    };
+  }
+}
+
+/// Habitat entity for multi-join testing.
+class Habitat {
+  int id = 0;
+  String biome = '';
+
+  static final $table = HabitatTable();
+}
+
+/// Mock habitat table for multi-join testing.
+class HabitatTable extends Table<Habitat> {
+  @override
+  final String $name = 'habitat';
+
+  @override
+  final Type $type = Habitat;
+
+  Field get id => Field('habitat', 'id');
+  Field get biome => Field('habitat', 'biome');
+
+  @override
+  Habitat fromDb(Map<String, dynamic> map) {
+    return Habitat()
+      ..id = map['id'] as int
+      ..biome = map['biome'] as String;
+  }
+
+  @override
+  Map<String, dynamic> toDb(Habitat instance) {
+    return <String, dynamic>{
+      'biome': instance.biome,
     };
   }
 }

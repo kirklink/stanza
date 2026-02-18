@@ -2,6 +2,7 @@ import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
+import 'package:stanza/src/select/join_clause.dart';
 import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/select/group_by_clause.dart';
 import 'package:stanza/src/select/order_by_clause.dart';
@@ -14,6 +15,7 @@ import 'package:stanza/src/table.dart';
 /// Takes the generated code table from a [StanzaEntity].
 class SelectQuery extends Query with WhereClause {
   SelectClause _selectClause = SelectClause();
+  List<JoinClause> _joins = [];
   OrderByClause _orderByClause = OrderByClause();
   GroupByClause? _groupByClause;
   LimitClause? _limitClause;
@@ -34,6 +36,9 @@ class SelectQuery extends Query with WhereClause {
     final buf = StringBuffer();
     buf.writeAll(['SELECT ', select]);
     buf.writeAll([br, 'FROM ', table.$name]);
+    for (final join in _joins) {
+      buf.writeAll([br, join.clause]);
+    }
     if (where != null) buf.writeAll([br, where]);
     if (group != null) buf.writeAll([br, group]);
     if (order != null) buf.writeAll([br, order]);
@@ -50,6 +55,34 @@ class SelectQuery extends Query with WhereClause {
   /// Select all the [Field]s from a [StanzaEntity] table.
   void selectStar([Table? t]) {
     _selectClause.star(t ?? table);
+  }
+
+  /// Add an INNER JOIN to this query.
+  JoinClause innerJoin(Table joinTable) {
+    final join = JoinClause(JoinType.inner, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a LEFT JOIN to this query.
+  JoinClause leftJoin(Table joinTable) {
+    final join = JoinClause(JoinType.left, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a RIGHT JOIN to this query.
+  JoinClause rightJoin(Table joinTable) {
+    final join = JoinClause(JoinType.right, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a CROSS JOIN to this query.
+  JoinClause crossJoin(Table joinTable) {
+    final join = JoinClause(JoinType.cross, joinTable);
+    _joins.add(join);
+    return join;
   }
 
   /// Group a select query by a list of [Field]s.
@@ -94,6 +127,7 @@ class SelectQuery extends Query with WhereClause {
     final q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
     q._selectClause = _selectClause.clone();
+    q._joins = _joins.map((j) => j.clone()).toList();
     q._orderByClause = _orderByClause.clone();
     q._groupByClause = _groupByClause?.clone();
     q._limitClause = _limitClause?.clone();
