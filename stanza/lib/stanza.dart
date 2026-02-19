@@ -12,3 +12,9 @@ export 'src/insert/conflict_clause.dart';
 export 'src/delete/delete_query.dart';
 export 'src/query_result.dart';
 export 'src/stanza_exception.dart';
+
+// Schema types needed by generated code ($schema getter)
+export 'src/schema/column_type.dart';
+export 'src/schema/schema_column.dart';
+export 'src/schema/schema_constraint.dart';
+export 'src/schema/schema_table.dart';

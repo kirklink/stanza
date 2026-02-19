@@ -5,8 +5,10 @@ part 'example.g.dart';
 
 @StanzaEntity(snakeCase: true)
 class Owner {
+  @PrimaryKey()
   @StanzaField(readOnly: true)
   late int id;
+  @StanzaField(unique: true)
   late String name;
 
   Owner();
@@ -16,6 +18,7 @@ class Owner {
 
 @StanzaEntity(name: 'mammal', snakeCase: true)
 class Animal {
+  @PrimaryKey()
   @StanzaField(readOnly: true)
   late int id;
   late String name;
@@ -24,7 +27,7 @@ class Animal {
   late String color;
   late DateTime createdAt;
 
-  @BelongsTo(Owner)
+  @BelongsTo(Owner, onDelete: 'CASCADE')
   late int ownerId;
 
   Animal();

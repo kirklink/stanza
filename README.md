@@ -19,9 +19,14 @@ A type-safe PostgreSQL query builder for Dart with code generation.
   - [RETURNING clause](#returning-clause)
   - [aggregates](#aggregates)
   - [transactions](#transactions)
+  - [streaming results](#streaming-results)
   - [raw SQL](#raw-sql)
   - [print a query](#print-a-query)
   - [fork a query](#fork-a-query)
+- [schema management](#schema-management)
+  - [schema annotations](#schema-annotations)
+  - [migration CLI](#migration-cli)
+  - [how it works](#how-it-works)
 
 ## overview
 
@@ -33,7 +38,7 @@ Stanza sits on top of the [postgres](https://pub.dev/packages/postgres) (v3) pac
 
 ## what it is not
 
-Stanza is not an ORM. It does not manage database schema (creating tables, migrations) or track object state. It gives you a type-safe query builder and leaves schema management, connection lifecycle, and application architecture to you.
+Stanza is not an ORM. It does not track object state or manage entity lifecycle. It gives you a type-safe query builder with optional schema management and leaves connection lifecycle and application architecture to you.
 
 ## setup
 
@@ -70,6 +75,7 @@ part 'animal.g.dart';
 
 @StanzaEntity(name: 'mammal', snakeCase: true)
 class Animal {
+  @PrimaryKey()
   @StanzaField(readOnly: true)
   late int id;
   late String name;
@@ -78,7 +84,7 @@ class Animal {
   late String color;
   late DateTime createdAt;
 
-  @BelongsTo(Owner)
+  @BelongsTo(Owner, onDelete: 'CASCADE')
   late int ownerId;
 
   Animal();
@@ -94,10 +100,17 @@ class Animal {
 | `@StanzaEntity(name: 'mammal')` | Class | Map class to a different table name |
 | `@StanzaEntity(snakeCase: true)` | Class | Auto-convert all field names to snake_case |
 | `@StanzaEntity(readOnly: true)` | Class | Prevent writes for the entire entity |
+| `@PrimaryKey()` | Field | Mark as primary key (serial by default) |
+| `@PrimaryKey(serial: false)` | Field | Primary key without auto-increment |
 | `@StanzaField(readOnly: true)` | Field | Exclude from writes (e.g., auto-increment IDs) |
 | `@StanzaField(name: 'db_column')` | Field | Map field to a different column name |
 | `@StanzaField(ignore: true)` | Field | Skip field entirely in generated code |
+| `@StanzaField(type: 'jsonb')` | Field | Override inferred PostgreSQL type |
+| `@StanzaField(unique: true)` | Field | Add a UNIQUE constraint |
+| `@StanzaField(nullable: false)` | Field | Override nullability inference |
+| `@StanzaField(defaultValue: 'NOW()')` | Field | SQL default expression |
 | `@BelongsTo(Owner)` | Field | Declare a foreign key relationship for typed JOINs |
+| `@BelongsTo(Owner, onDelete: 'CASCADE')` | Field | FK with referential action on delete |
 
 Run code generation to produce the typed table class:
 
@@ -478,3 +491,123 @@ for (var color in ['orange', 'brown', 'white']) {
 ```
 
 The forked query is a deep copy — modifying it does not affect the original.
+
+## schema management
+
+Stanza includes optional schema management that diffs your Dart models against a live database and generates forward-only SQL migration files. Import it separately:
+
+```dart
+import 'package:stanza/schema.dart';
+```
+
+### schema annotations
+
+Schema management builds on the same annotations used for query building. Add `@PrimaryKey` and schema-related `@StanzaField` parameters to describe your database structure:
+
+```dart
+@StanzaEntity(snakeCase: true)
+class Owner {
+  @PrimaryKey()
+  @StanzaField(readOnly: true)
+  late int id;
+  @StanzaField(unique: true)
+  late String name;
+
+  Owner();
+  static final _$OwnerTable $table = _$OwnerTable();
+}
+
+@StanzaEntity(name: 'mammal', snakeCase: true)
+class Animal {
+  @PrimaryKey()
+  @StanzaField(readOnly: true)
+  late int id;
+  late String name;
+  @StanzaField(name: 'number_of_legs')
+  late int legs;
+  late String color;
+  @StanzaField(defaultValue: 'NOW()')
+  late DateTime createdAt;
+
+  @BelongsTo(Owner, onDelete: 'CASCADE')
+  late int ownerId;
+
+  Animal();
+  static final _$AnimalTable $table = _$AnimalTable();
+}
+```
+
+After running `dart run build_runner build`, each generated table class includes a `$schema` getter that encodes the full table structure — columns, types, constraints — as data.
+
+**Type inference** (when `@StanzaField(type:)` is not set):
+
+| Dart type | PostgreSQL type |
+|---|---|
+| `int` | `integer` |
+| `String` | `text` |
+| `bool` | `boolean` |
+| `double` | `double precision` |
+| `DateTime` | `timestamptz` |
+| `@PrimaryKey() int` | `serial` |
+
+Nullability is inferred from Dart's `?` suffix. Use `@StanzaField(nullable: false)` to override.
+
+### migration CLI
+
+Create a `bin/migrate.dart` script in your project:
+
+```dart
+import 'dart:io';
+import 'package:stanza/schema.dart';
+import 'package:my_app/models.dart';
+
+void main(List<String> args) => StanzaCli.run(
+  args,
+  databaseUrl: Platform.environment['DATABASE_URL']!,
+  tables: [Owner.$table, Animal.$table],
+);
+```
+
+Then use it:
+
+```bash
+# See what's applied vs pending
+dart run bin/migrate.dart status
+
+# Show schema differences (code vs database)
+dart run bin/migrate.dart diff
+
+# Generate a timestamped .sql migration file
+dart run bin/migrate.dart generate
+
+# Review the generated file, then apply
+dart run bin/migrate.dart apply
+
+# Preview without executing
+dart run bin/migrate.dart apply --dry-run
+```
+
+### how it works
+
+1. **Diff**: `SchemaManager` reads `$schema` from each table, queries `information_schema` for the actual database state, and computes the difference.
+
+2. **Generate**: The diff is written to a timestamped SQL file (e.g., `migrations/20260219_143022.sql`) wrapped in `BEGIN`/`COMMIT`. Dropped columns are commented out with `-- SAFETY:` so you must consciously uncomment them.
+
+3. **Apply**: Pending migration files are applied in filename order. Each migration runs in a transaction and is recorded in a `_stanza_migrations` tracking table with a SHA-256 checksum. Modified applied migrations are rejected.
+
+4. **Forward-only**: There are no rollback/down migrations. If a migration goes wrong, write a new forward migration to fix it.
+
+You can also use the API directly instead of the CLI:
+
+```dart
+final manager = SchemaManager(
+  stanza,
+  tables: [Owner.$table, Animal.$table],
+  migrationsDir: 'migrations',
+);
+
+final ops = await manager.diff();       // List<SchemaDiffOp>
+final path = await manager.generate();  // writes .sql file
+final applied = await manager.apply();  // applies pending files
+final statuses = await manager.status(); // applied/pending list
+```

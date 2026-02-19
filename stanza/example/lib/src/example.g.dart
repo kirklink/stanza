@@ -35,6 +35,41 @@ class _$OwnerTable extends Table<Owner> {
       'name': instance.name,
     };
   }
+
+  @override
+  SchemaTable get $schema => SchemaTable(
+        name: 'owner',
+        columns: [
+          SchemaColumn(
+            name: 'id',
+            type: ColumnType('serial'),
+            nullable: false,
+            isPrimaryKey: true,
+            isSerial: true,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'name',
+            type: ColumnType('text'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: true,
+          ),
+        ],
+        constraints: [
+          SchemaConstraint(
+            name: 'owner_pkey',
+            kind: ConstraintKind.primaryKey,
+            columns: ['id'],
+          ),
+          SchemaConstraint(
+            name: 'owner_name_key',
+            kind: ConstraintKind.unique,
+            columns: ['name'],
+          ),
+        ],
+      );
 }
 
 class AnimalEntityException implements Exception {
@@ -78,6 +113,76 @@ class _$AnimalTable extends Table<Animal> {
       'owner_id': instance.ownerId,
     };
   }
+
+  @override
+  SchemaTable get $schema => SchemaTable(
+        name: 'mammal',
+        columns: [
+          SchemaColumn(
+            name: 'id',
+            type: ColumnType('serial'),
+            nullable: false,
+            isPrimaryKey: true,
+            isSerial: true,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'name',
+            type: ColumnType('text'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'number_of_legs',
+            type: ColumnType('integer'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'color',
+            type: ColumnType('text'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'created_at',
+            type: ColumnType('timestamptz'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: false,
+          ),
+          SchemaColumn(
+            name: 'owner_id',
+            type: ColumnType('integer'),
+            nullable: false,
+            isPrimaryKey: false,
+            isSerial: false,
+            isUnique: false,
+          ),
+        ],
+        constraints: [
+          SchemaConstraint(
+            name: 'mammal_pkey',
+            kind: ConstraintKind.primaryKey,
+            columns: ['id'],
+          ),
+          SchemaConstraint(
+            name: 'mammal_owner_id_fkey',
+            kind: ConstraintKind.foreignKey,
+            columns: ['owner_id'],
+            referencedTable: 'owner',
+            referencedColumn: 'id',
+            onDelete: 'CASCADE',
+          ),
+        ],
+      );
 
   // --- BelongsTo: Owner via ownerId ---
 

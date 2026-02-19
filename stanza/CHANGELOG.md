@@ -25,10 +25,22 @@ Full modernization: Dart 3, null safety, postgres v3.
 - **Safety**: UPDATE/DELETE without WHERE throws unless `overrideSafety: true`
 - **Query forking**: `fork()` creates deep copies of any query for dynamic patterns
 
+### Schema management
+- **Schema diffing**: Compares Dart model annotations against live `information_schema` to detect differences
+- **Migration generation**: `SchemaManager.generate()` writes timestamped `.sql` files with `BEGIN`/`COMMIT` wrapping
+- **Migration runner**: Forward-only migration application with `_stanza_migrations` tracking table and SHA-256 checksum verification
+- **CLI helper**: `StanzaCli.run()` provides `status`, `diff`, `generate`, `apply`, and `apply --dry-run` commands
+- **Diff operations**: `CreateTable`, `AddColumn`, `AlterColumnType`, `AlterColumnNullability`, `AlterColumnDefault`, `AddConstraint`, `DropColumn` (safety-commented), `DropConstraint`
+- **DB introspector**: Queries `information_schema` for columns, PK/UNIQUE constraints, and foreign keys with serial detection
+- **Topological sort**: Tables sorted by FK dependencies (Kahn's algorithm) so parent tables are created before children
+- Separate barrel export: `import 'package:stanza/schema.dart'`
+
 ### Code generation
 - `@StanzaEntity(name:, snakeCase:, readOnly:)` — class-level table mapping
-- `@StanzaField(readOnly:, name:, ignore:)` — field-level column mapping
-- `@BelongsTo(ParentType)` — foreign key relationship with typed JOIN helpers
+- `@StanzaField(readOnly:, name:, ignore:, type:, nullable:, unique:, defaultValue:)` — field-level column mapping with schema metadata
+- `@PrimaryKey(serial:)` — primary key annotation (serial auto-increment by default)
+- `@BelongsTo(ParentType, onDelete:)` — foreign key relationship with typed JOIN helpers and referential action
+- Generated `$schema` getter on each table class encodes full column/constraint metadata for schema diffing
 
 ### Connection configuration
 - `Stanza.tcp()` accepts `sslMode`, `connectTimeout`, `queryTimeout`, `applicationName`
@@ -36,7 +48,7 @@ Full modernization: Dart 3, null safety, postgres v3.
 - `SslMode` re-exported from `package:stanza/stanza.dart`
 
 ### Test suite
-- 173 unit tests covering all query types, WHERE operations, JOINs, aggregates, streaming, forking
+- 233 unit tests covering all query types, WHERE operations, JOINs, aggregates, streaming, forking, schema model, diff engine, and migration file generation
 - Integration tests against real PostgreSQL (Neon) via `DATABASE_URL`
 
 ---

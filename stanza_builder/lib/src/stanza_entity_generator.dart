@@ -16,6 +16,9 @@ const _checkForStanzaField = TypeChecker.fromUrl(
 const _checkForBelongsTo = TypeChecker.fromUrl(
     'package:stanza/src/annotations.dart#BelongsTo');
 
+const _checkForPrimaryKey = TypeChecker.fromUrl(
+    'package:stanza/src/annotations.dart#PrimaryKey');
+
 // ---------------------------------------------------------------------------
 // Data classes for resolved entity metadata
 // ---------------------------------------------------------------------------
@@ -26,6 +29,17 @@ class _ResolvedField {
   final String typeStr;
   final bool readOnly;
   final bool ignore;
+  // Schema metadata
+  final bool isPrimaryKey;
+  final bool isSerial;
+  final String? sqlType;
+  final bool? explicitNullable;
+  final bool isUnique;
+  final String? defaultValue;
+  // FK metadata (from @BelongsTo)
+  final String? fkReferencedTable;
+  final String? fkReferencedColumn;
+  final String? fkOnDelete;
 
   _ResolvedField({
     required this.dartName,
@@ -33,7 +47,23 @@ class _ResolvedField {
     required this.typeStr,
     required this.readOnly,
     required this.ignore,
+    this.isPrimaryKey = false,
+    this.isSerial = false,
+    this.sqlType,
+    this.explicitNullable,
+    this.isUnique = false,
+    this.defaultValue,
+    this.fkReferencedTable,
+    this.fkReferencedColumn,
+    this.fkOnDelete,
   });
+
+  /// Whether this field is nullable, considering explicit annotation and Dart type.
+  bool get isNullable {
+    if (explicitNullable != null) return explicitNullable!;
+    if (isPrimaryKey) return false;
+    return typeStr.endsWith('?');
+  }
 }
 
 class _ResolvedEntity {
@@ -103,6 +133,10 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
       var dbName = field.name!;
       var readOnly = false;
       var ignore = false;
+      String? sqlType;
+      bool? explicitNullable;
+      var isUnique = false;
+      String? defaultValue;
 
       if (_checkForStanzaField.hasAnnotationOfExact(field)) {
         final fieldReader =
@@ -110,6 +144,55 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
         dbName = fieldReader.peek('name')?.stringValue ?? field.name!;
         readOnly = fieldReader.peek('readOnly')?.boolValue ?? false;
         ignore = fieldReader.peek('ignore')?.boolValue ?? false;
+        sqlType = fieldReader.peek('type')?.stringValue;
+        final nullableVal = fieldReader.peek('nullable');
+        if (nullableVal != null && !nullableVal.isNull) {
+          explicitNullable = nullableVal.boolValue;
+        }
+        isUnique = fieldReader.peek('unique')?.boolValue ?? false;
+        defaultValue = fieldReader.peek('defaultValue')?.stringValue;
+      }
+
+      // Check for @PrimaryKey
+      var isPrimaryKey = false;
+      var isSerial = false;
+      if (_checkForPrimaryKey.hasAnnotationOfExact(field)) {
+        isPrimaryKey = true;
+        final pkReader =
+            ConstantReader(_checkForPrimaryKey.firstAnnotationOf(field)!);
+        isSerial = pkReader.peek('serial')?.boolValue ?? true;
+      }
+
+      // Check for @BelongsTo FK metadata
+      String? fkReferencedTable;
+      String? fkReferencedColumn;
+      String? fkOnDelete;
+      if (_checkForBelongsTo.hasAnnotationOfExact(field)) {
+        final btObj = _checkForBelongsTo.firstAnnotationOf(field)!;
+        final btReader = ConstantReader(btObj);
+        fkReferencedColumn = btReader.peek('targetKey')?.stringValue ?? 'id';
+        final onDeleteVal = btReader.peek('onDelete');
+        if (onDeleteVal != null && !onDeleteVal.isNull) {
+          fkOnDelete = onDeleteVal.stringValue;
+        }
+        // Resolve parent table name
+        final parentType = btObj.getField('parent')!.toTypeValue()!;
+        final parentElement = parentType.element as ClassElement;
+        final parentAnnotation =
+            _checkForStanzaEntity.firstAnnotationOf(parentElement);
+        if (parentAnnotation != null) {
+          final parentReader = ConstantReader(parentAnnotation);
+          final parentSnakeCase =
+              parentReader.peek('snakeCase')?.boolValue ?? false;
+          var parentTableName = parentReader.peek('name')?.stringValue;
+          if (parentTableName == null) {
+            parentTableName = parentElement.name!;
+            if (parentSnakeCase) {
+              parentTableName = ReCase(parentTableName).snakeCase;
+            }
+          }
+          fkReferencedTable = parentTableName;
+        }
       }
 
       if (snakeCase) dbName = ReCase(dbName).snakeCase;
@@ -120,6 +203,15 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
         typeStr: field.type.getDisplayString(),
         readOnly: readOnly,
         ignore: ignore,
+        isPrimaryKey: isPrimaryKey,
+        isSerial: isSerial,
+        sqlType: sqlType,
+        explicitNullable: explicitNullable,
+        isUnique: isUnique,
+        defaultValue: defaultValue,
+        fkReferencedTable: fkReferencedTable,
+        fkReferencedColumn: fkReferencedColumn,
+        fkOnDelete: fkOnDelete,
       ));
     }
 
@@ -280,6 +372,9 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     tableBuffer.write(fromDbBuffer);
     tableBuffer.write(toDbBuffer);
 
+    // --- Generate $schema getter ---
+    tableBuffer.write(_generateSchemaGetter(entity));
+
     // --- Generate BelongsTo join helpers ---
     for (final rel in relationships) {
       final parent = rel.parentEntity;
@@ -349,5 +444,95 @@ class StanzaEntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     fileBuffer.writeln();
     fileBuffer.write(tableBuffer);
     return fileBuffer.toString();
+  }
+
+  /// Infer a PostgreSQL type string from a Dart type name.
+  String _inferPgType(String dartType, {bool serial = false}) {
+    if (serial) return 'serial';
+    final base = dartType.replaceAll('?', '');
+    switch (base) {
+      case 'int':
+        return 'integer';
+      case 'String':
+        return 'text';
+      case 'bool':
+        return 'boolean';
+      case 'double':
+        return 'double precision';
+      case 'DateTime':
+        return 'timestamptz';
+      default:
+        return 'text';
+    }
+  }
+
+  /// Generate the `$schema` getter that returns a `SchemaTable`.
+  String _generateSchemaGetter(_ResolvedEntity entity) {
+    final buf = StringBuffer();
+    buf.writeln();
+    buf.writeln('  @override');
+    buf.writeln('  SchemaTable get \$schema => SchemaTable(');
+    buf.writeln("    name: '${entity.tableName}',");
+    buf.writeln('    columns: [');
+
+    for (final field in entity.activeFields) {
+      final pgType = field.sqlType ?? _inferPgType(field.typeStr, serial: field.isSerial);
+      buf.writeln('      SchemaColumn(');
+      buf.writeln("        name: '${field.dbName}',");
+      buf.writeln("        type: ColumnType('$pgType'),");
+      buf.writeln('        nullable: ${field.isNullable},');
+      if (field.defaultValue != null) {
+        buf.writeln("        defaultValue: '${field.defaultValue}',");
+      }
+      buf.writeln('        isPrimaryKey: ${field.isPrimaryKey},');
+      buf.writeln('        isSerial: ${field.isSerial},');
+      buf.writeln('        isUnique: ${field.isUnique},');
+      buf.writeln('      ),');
+    }
+
+    buf.writeln('    ],');
+    buf.writeln('    constraints: [');
+
+    // PK constraint
+    final pkFields = entity.activeFields.where((f) => f.isPrimaryKey).toList();
+    if (pkFields.isNotEmpty) {
+      final pkCols = pkFields.map((f) => "'${f.dbName}'").join(', ');
+      buf.writeln('      SchemaConstraint(');
+      buf.writeln("        name: '${entity.tableName}_pkey',");
+      buf.writeln('        kind: ConstraintKind.primaryKey,');
+      buf.writeln('        columns: [$pkCols],');
+      buf.writeln('      ),');
+    }
+
+    // Unique constraints
+    for (final field in entity.activeFields) {
+      if (field.isUnique) {
+        buf.writeln('      SchemaConstraint(');
+        buf.writeln("        name: '${entity.tableName}_${field.dbName}_key',");
+        buf.writeln('        kind: ConstraintKind.unique,');
+        buf.writeln("        columns: ['${field.dbName}'],");
+        buf.writeln('      ),');
+      }
+    }
+
+    // FK constraints
+    for (final field in entity.activeFields) {
+      if (field.fkReferencedTable != null) {
+        buf.writeln('      SchemaConstraint(');
+        buf.writeln("        name: '${entity.tableName}_${field.dbName}_fkey',");
+        buf.writeln('        kind: ConstraintKind.foreignKey,');
+        buf.writeln("        columns: ['${field.dbName}'],");
+        buf.writeln("        referencedTable: '${field.fkReferencedTable}',");
+        buf.writeln("        referencedColumn: '${field.fkReferencedColumn}',");
+        if (field.fkOnDelete != null) {
+          buf.writeln("        onDelete: '${field.fkOnDelete}',");
+        }
+        buf.writeln('      ),');
+      }
+    }
+
+    buf.writeln('    ],');
+    buf.writeln('  );');
+    return buf.toString();
   }
 }
