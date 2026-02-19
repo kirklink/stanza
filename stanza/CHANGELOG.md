@@ -20,6 +20,7 @@ Full modernization: Dart 3, null safety, postgres v3.
 - **WHERE operations**: `isIn()`, `isNotIn()`, `isBetween()` on `WhereOperation`
 - **DISTINCT**: `distinct()` on `SelectQuery`
 - **HAVING**: `having()`, `andHaving()`, `orHaving()` for aggregate filtering after GROUP BY
+- **Streaming**: `stream<T>()` on `Stanza` and `StanzaSession` for row-by-row streaming via postgres v3 prepared statements
 - **Raw SQL**: `rawExecute()` on `Stanza` and `StanzaSession` for DDL, migrations, or unsupported queries
 - **Safety**: UPDATE/DELETE without WHERE throws unless `overrideSafety: true`
 - **Query forking**: `fork()` creates deep copies of any query for dynamic patterns
@@ -29,8 +30,13 @@ Full modernization: Dart 3, null safety, postgres v3.
 - `@StanzaField(readOnly:, name:, ignore:)` — field-level column mapping
 - `@BelongsTo(ParentType)` — foreign key relationship with typed JOIN helpers
 
+### Connection configuration
+- `Stanza.tcp()` accepts `sslMode`, `connectTimeout`, `queryTimeout`, `applicationName`
+- `Stanza.unix()` accepts `connectTimeout`, `queryTimeout`, `applicationName`
+- `SslMode` re-exported from `package:stanza/stanza.dart`
+
 ### Test suite
-- 169 unit tests covering all query types, WHERE operations, JOINs, aggregates, forking
+- 173 unit tests covering all query types, WHERE operations, JOINs, aggregates, streaming, forking
 - Integration tests against real PostgreSQL (Neon) via `DATABASE_URL`
 
 ---

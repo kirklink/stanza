@@ -806,6 +806,77 @@ void main() {
     });
   });
 
+  group('stream', () {
+    test('streams all rows one by one', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..orderBy(t.name);
+      final rows = <Result<Animal>>[];
+      await for (final row in stanza.stream<Animal>(q)) {
+        rows.add(row);
+      }
+      expect(rows.length, 4);
+      expect(rows[0].value!.name, 'Eagle');
+      expect(rows[1].value!.name, 'Jellyfish');
+      expect(rows[2].value!.name, 'Snake');
+      expect(rows[3].value!.name, 'Tiger');
+    });
+
+    test('streams with where clause', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.legs).isGreaterThan(0)
+        ..orderBy(t.legs);
+      final rows = <Result<Animal>>[];
+      await for (final row in stanza.stream<Animal>(q)) {
+        rows.add(row);
+      }
+      expect(rows.length, 2);
+      expect(rows[0].value!.name, 'Eagle'); // 2 legs
+      expect(rows[1].value!.name, 'Tiger'); // 4 legs
+    });
+
+    test('streams empty result set', () async {
+      final q = SelectQuery(t)
+        ..selectStar()
+        ..where(t.name).matches('NonExistent', caseSensitive: true);
+      final rows = <Result<Animal>>[];
+      await for (final row in stanza.stream<Animal>(q)) {
+        rows.add(row);
+      }
+      expect(rows, isEmpty);
+    });
+
+    test('stream within session.run', () async {
+      await stanza.run((session) async {
+        final q = SelectQuery(t)
+          ..selectStar()
+          ..orderBy(t.name);
+        final rows = <Result<Animal>>[];
+        await for (final row in session.stream<Animal>(q)) {
+          rows.add(row);
+        }
+        expect(rows.length, 4);
+        expect(rows.first.value!.name, 'Eagle');
+      });
+    });
+
+    test('stream provides aggregate map', () async {
+      final q = SelectQuery(t)
+        ..selectFields([t.color, t.id..count()..rename('cnt')])
+        ..groupBy([t.color])
+        ..orderBy(t.color);
+      final rows = <Result<Animal>>[];
+      await for (final row in stanza.stream<Animal>(q)) {
+        rows.add(row);
+      }
+      expect(rows.isNotEmpty, isTrue);
+      for (final row in rows) {
+        expect(row.aggregate.containsKey('cnt'), isTrue);
+      }
+    });
+  });
+
   group('safety', () {
     test('delete without where throws StanzaException', () async {
       expect(

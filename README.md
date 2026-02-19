@@ -414,6 +414,27 @@ await stanza.run((session) async {
 });
 ```
 
+### streaming results
+
+For large result sets, `stream<T>()` uses postgres v3 prepared statements to deliver rows one at a time without buffering the entire result in memory:
+
+```dart
+await for (final row in stanza.stream<Animal>(selectQuery)) {
+  print(row.value?.name);       // typed entity
+  print(row.aggregate);          // raw column map
+}
+```
+
+Each element is a `Result<T>` — the same type returned inside `QueryResult.all`. Streaming is also available on `StanzaSession` inside `run()` and `runTransaction()` blocks:
+
+```dart
+await stanza.run((session) async {
+  await for (final row in session.stream<Animal>(selectQuery)) {
+    process(row);
+  }
+});
+```
+
 ### raw SQL
 
 For DDL, migrations, or anything the query builder doesn't cover:

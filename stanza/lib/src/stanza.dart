@@ -30,6 +30,21 @@ class StanzaSession {
     return _toQueryResult<T>(result, query);
   }
 
+  /// Stream query results row by row within this session.
+  ///
+  /// Uses postgres v3 prepared statements for true streaming — rows arrive
+  /// one at a time without buffering the full result set in memory.
+  Stream<Result<T>> stream<T>(Query query) async* {
+    final stmt = await _session.prepare(pg.Sql.named(query.statement()));
+    try {
+      await for (final row in stmt.bind(query.substitutionValues)) {
+        yield _toSingleResult<T>(row, query);
+      }
+    } finally {
+      await stmt.dispose();
+    }
+  }
+
   /// Execute a raw SQL string within this session.
   ///
   /// Use for DDL statements, migrations, or queries not expressible
@@ -179,6 +194,27 @@ class Stanza {
     return _toQueryResult<T>(result, query);
   }
 
+  /// Stream query results row by row.
+  ///
+  /// Uses postgres v3 prepared statements for true streaming — rows arrive
+  /// one at a time without buffering the full result set in memory.
+  ///
+  /// ```dart
+  /// await for (final row in stanza.stream<Animal>(selectQuery)) {
+  ///   print(row.value?.name);
+  /// }
+  /// ```
+  Stream<Result<T>> stream<T>(Query query) async* {
+    final stmt = await _pool.prepare(pg.Sql.named(query.statement()));
+    try {
+      await for (final row in stmt.bind(query.substitutionValues)) {
+        yield _toSingleResult<T>(row, query);
+      }
+    } finally {
+      await stmt.dispose();
+    }
+  }
+
   /// Execute a raw SQL string.
   ///
   /// Use for DDL statements, migrations, or queries not expressible
@@ -288,4 +324,16 @@ QueryResult<T> _toQueryResult<T>(pg.Result result, Query query) {
     rows.add(row.toColumnMap());
   }
   return QueryResult<T>(rows, query.table);
+}
+
+/// Converts a single postgres v3 ResultRow to a Stanza Result.
+Result<T> _toSingleResult<T>(pg.ResultRow row, Query query) {
+  final map = row.toColumnMap();
+  T? value;
+  try {
+    value = query.table.fromDb(map) as T;
+  } catch (_) {
+    value = null;
+  }
+  return Result<T>(value, map);
 }
