@@ -1,6 +1,6 @@
 # Stanza - Dart PostgreSQL Query Builder
 
-Type-safe PostgreSQL query builder with code generation and schema management. Fluent API for SELECT, INSERT, UPDATE, DELETE with parameterized queries, JOINs, RETURNING, streaming, and typed result mapping. Forward-only migration system with schema diffing.
+Type-safe PostgreSQL query builder with code generation and schema management. Fluent API for SELECT, INSERT, UPDATE, DELETE with parameterized queries, JOINs, RETURNING, streaming, full-text search, trigram similarity, and typed result mapping. Forward-only migration system with schema diffing.
 
 ## Project Structure
 
@@ -12,8 +12,9 @@ Type-safe PostgreSQL query builder with code generation and schema management. F
 ## Branch Strategy
 
 - `main` - Stable code
-- `feature/modernization` - Core query builder (complete)
-- `feature/schema-management` - Schema management & migrations (active)
+- `dev` - All features merged (active)
+- `feature/modernization` - Core query builder (complete, merged to dev)
+- `feature/schema-management` - Schema management & migrations (complete, merged to dev)
 
 ## Commands
 
@@ -56,12 +57,13 @@ dart run build_runner build --delete-conflicting-outputs
 | `stanza/lib/src/annotations.dart` | @StanzaEntity, @StanzaField, @PrimaryKey, @BelongsTo |
 | `stanza/lib/src/table.dart` | Abstract Table<T> with fromDb/toDb/$schema |
 | `stanza/lib/src/field.dart` | Field class with aggregates (sum, avg, count, min, max) |
-| `stanza/lib/src/select/select_query.dart` | SelectQuery (joins, groupBy, orderBy, limit, offset) |
+| `stanza/lib/src/select/select_query.dart` | SelectQuery (joins, groupBy, orderBy, limit, offset, FTS rank/headline, similarity) |
 | `stanza/lib/src/insert/insert_query.dart` | InsertQuery (single, batch, upsert) |
 | `stanza/lib/src/update/update_query.dart` | UpdateQuery with SetValue (.string, .number, etc.) |
 | `stanza/lib/src/delete/delete_query.dart` | DeleteQuery |
 | `stanza/lib/src/shared/where_clause.dart` | WhereClause mixin (where/and/or) |
-| `stanza/lib/src/shared/where_operations.dart` | WhereOperation (20+ comparison operators) |
+| `stanza/lib/src/shared/where_operations.dart` | WhereOperation (20+ comparison operators + FTS + trigram) |
+| `stanza/lib/src/shared/fts_config.dart` | FtsConfig enum (language configs) + FtsQueryType enum |
 | `stanza/lib/src/shared/returning_clause.dart` | ReturningClause mixin (returning/returningStar) |
 | `stanza/lib/src/select/join_clause.dart` | JoinClause (inner, left, right, cross) |
 | `stanza/lib/src/schema/column_type.dart` | PG type mapping + equivalence (serial ≡ integer) |
@@ -78,8 +80,8 @@ dart run build_runner build --delete-conflicting-outputs
 
 ## Tests
 
-- 233 tests across 13 test files in `stanza/stanza/test/`
-- Unit tests cover all query types, WHERE operations, JOINs, RETURNING, field aggregates, streaming, schema model, diff engine, migration file generation
+- 271 tests across 14 test files in `stanza/stanza/test/`
+- Unit tests cover all query types, WHERE operations, JOINs, RETURNING, field aggregates, FTS, trigram similarity, streaming, schema model, diff engine, migration file generation
 - Schema tests in `test/schema/`: `column_type_test.dart`, `schema_diff_test.dart`, `migration_file_test.dart`
 - Integration tests in `integration_test.dart` require `DATABASE_URL` env var (Neon PostgreSQL); skipped gracefully when not set
 - Test helpers in `test_helpers.dart` define mock `AnimalTable`, `OwnerTable`, `HabitatTable`
@@ -192,6 +194,8 @@ final q = DeleteQuery(Animal.$table)
 - **Boolean**: `isTrue()`, `isFalse()`
 - **Null**: `isNull()`, `isNotNull()`
 - **DateTime**: `isBefore(DateTime)`, `isAfter(DateTime)`, `isOn(DateTime)`
+- **Full-text search**: `fullTextMatches(String, {FtsConfig, FtsQueryType})` — `to_tsvector() @@ tsquery()`
+- **Trigram similarity**: `isSimilarTo(String)` — `field % @param`, `isWordSimilarTo(String)` — `@param %> field`
 - **Raw**: `raw(String sql)` for custom SQL conditions
 
 **Note**: `isEqualTo()` only accepts `num`, not `String`. Use `matches()` for string equality.
@@ -247,6 +251,27 @@ class MyEntity {
 
   static final $table = _$MyEntityTable();
 }
+```
+
+### Full-Text Search & Trigram Similarity
+
+```dart
+// Full-text search WHERE (parameterized)
+q.where(t.body).fullTextMatches('cats dogs');
+q.where(t.body).fullTextMatches('"exact" -excluded', queryType: FtsQueryType.websearch);
+q.where(t.body).fullTextMatches('fat cats', queryType: FtsQueryType.phrase);
+q.where(t.body).fullTextMatches('gatos', config: FtsConfig.spanish);
+
+// Trigram similarity WHERE (requires pg_trgm extension)
+q.where(t.name).isSimilarTo('jonh');       // field % @param
+q.where(t.name).isWordSimilarTo('cat');    // @param %> field
+
+// Ranking and headlines (SELECT + ORDER BY)
+q.selectRank(t.body, 'query');             // ts_rank() in SELECT, ORDER BY DESC
+q.selectHeadline(t.body, 'query',          // ts_headline() in SELECT
+    options: 'StartSel=<b>, StopSel=</b>');
+q.selectSimilarity(t.name, 'jonh');        // similarity() in SELECT, ORDER BY DESC
+q.orderByDistance(t.name, 'jonh');          // field <-> @param ASC (GiST-friendly)
 ```
 
 ### Schema Management

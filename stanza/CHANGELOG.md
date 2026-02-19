@@ -18,6 +18,11 @@ Full modernization: Dart 3, null safety, postgres v3.
 - **Batch insert**: `insertEntities<T>(list)` for multi-row INSERT in a single statement
 - **Upsert**: `onConflict(target:, doUpdate:)` for ON CONFLICT DO UPDATE SET, `onConflictDoNothing()` for DO NOTHING
 - **WHERE operations**: `isIn()`, `isNotIn()`, `isBetween()` on `WhereOperation`
+- **Full-text search**: `fullTextMatches()` on `WhereOperation` with configurable language (`FtsConfig`) and query parser (`FtsQueryType`: plain, websearch, phrase)
+- **Trigram similarity**: `isSimilarTo()` and `isWordSimilarTo()` on `WhereOperation` for fuzzy matching via `pg_trgm`
+- **Search ranking**: `selectRank()` adds `ts_rank()` to SELECT with automatic ORDER BY, `selectHeadline()` adds `ts_headline()` for highlighted snippets
+- **Similarity scoring**: `selectSimilarity()` adds `similarity()` score to SELECT, `orderByDistance()` uses GiST-index-friendly `<->` operator
+- **Expression support**: `addExpression()` on `SelectClause` and `OrderByClause` for raw SQL expressions in SELECT and ORDER BY
 - **DISTINCT**: `distinct()` on `SelectQuery`
 - **HAVING**: `having()`, `andHaving()`, `orHaving()` for aggregate filtering after GROUP BY
 - **Streaming**: `stream<T>()` on `Stanza` and `StanzaSession` for row-by-row streaming via postgres v3 prepared statements
@@ -48,7 +53,7 @@ Full modernization: Dart 3, null safety, postgres v3.
 - `SslMode` re-exported from `package:stanza/stanza.dart`
 
 ### Test suite
-- 233 unit tests covering all query types, WHERE operations, JOINs, aggregates, streaming, forking, schema model, diff engine, and migration file generation
+- 271 unit tests covering all query types, WHERE operations, JOINs, aggregates, FTS, trigram similarity, streaming, forking, schema model, diff engine, and migration file generation
 - Integration tests against real PostgreSQL (Neon) via `DATABASE_URL`
 
 ---

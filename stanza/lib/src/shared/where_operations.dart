@@ -1,4 +1,5 @@
 import 'package:stanza/src/query.dart';
+import 'package:stanza/src/shared/fts_config.dart';
 import 'package:stanza/src/shared/where_package.dart';
 import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/value_substitution.dart';
@@ -246,6 +247,83 @@ class WhereOperation {
     _raw =
         '${_where.openBracket ? '(' : ''}${_where.field.expressionName} BETWEEN ${subLow.token} AND ${subHigh.token}${_where.closeBracket ? ')' : ''}';
     _where.attachment.add('${_where.operation} $_raw');
+    return _where.source;
+  }
+
+  /// Full-text search: matches the field against a text search query.
+  ///
+  /// Produces `to_tsvector('config', field) @@ plainto_tsquery('config', @param)`
+  /// with the search text parameterized automatically.
+  ///
+  /// [query] is the search text.
+  /// [config] specifies the text search dictionary (default: english).
+  /// [queryType] specifies the tsquery parser (default: plain).
+  ///
+  /// ```dart
+  /// q.where(t.body).fullTextMatches('cats dogs');
+  /// q.where(t.body).fullTextMatches('"exact phrase" -excluded',
+  ///     queryType: FtsQueryType.websearch);
+  /// ```
+  Query fullTextMatches(
+    String query, {
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+  }) {
+    final sub = ValueSub('${_subKeyBase}_fts', query);
+    _where.source.addSubstitution(sub);
+    final tsqueryFn = switch (queryType) {
+      FtsQueryType.plain => 'plainto_tsquery',
+      FtsQueryType.websearch => 'websearch_to_tsquery',
+      FtsQueryType.phrase => 'phraseto_tsquery',
+    };
+    final open = _where.openBracket ? '(' : '';
+    final close = _where.closeBracket ? ')' : '';
+    _where.attachment.add(
+        "${_where.operation} ${open}to_tsvector('${config.value}', "
+        '${_where.field.qualifiedName}) @@ '
+        "$tsqueryFn('${config.value}', ${sub.token})$close");
+    return _where.source;
+  }
+
+  /// Trigram similarity: matches when similarity is above the default
+  /// threshold (0.3).
+  ///
+  /// Produces `field % @param` using pg_trgm's `%` operator.
+  /// Requires the `pg_trgm` extension to be enabled in PostgreSQL.
+  ///
+  /// ```dart
+  /// q.where(t.name).isSimilarTo('jonh');  // finds "john" despite typo
+  /// ```
+  Query isSimilarTo(String text) {
+    final sub = ValueSub('${_subKeyBase}_trgm', text);
+    _where.source.addSubstitution(sub);
+    final open = _where.openBracket ? '(' : '';
+    final close = _where.closeBracket ? ')' : '';
+    _where.attachment.add(
+        '${_where.operation} $open${_where.field.qualifiedName} '
+        '% ${sub.token}$close');
+    return _where.source;
+  }
+
+  /// Trigram word similarity: matches when word_similarity is above the
+  /// default threshold.
+  ///
+  /// Produces `@param %> field` using pg_trgm's `%>` operator.
+  /// Word similarity checks if the query appears as a complete word within
+  /// the field, which is more appropriate for matching a short query against
+  /// longer text. Requires the `pg_trgm` extension.
+  ///
+  /// ```dart
+  /// q.where(t.description).isWordSimilarTo('cat');
+  /// ```
+  Query isWordSimilarTo(String text) {
+    final sub = ValueSub('${_subKeyBase}_trgm_word', text);
+    _where.source.addSubstitution(sub);
+    final open = _where.openBracket ? '(' : '';
+    final close = _where.closeBracket ? ')' : '';
+    _where.attachment.add(
+        '${_where.operation} $open${sub.token} '
+        '%> ${_where.field.qualifiedName}$close');
     return _where.source;
   }
 

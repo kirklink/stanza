@@ -9,6 +9,15 @@ class OrderByClause implements QueryClause {
     _clauses.add(field.sql + direction);
   }
 
+  /// Add a raw SQL expression to the ORDER BY list.
+  ///
+  /// Used for ordering by computed expressions like `ts_rank(...)` or
+  /// `similarity(...)` that cannot be expressed as a simple [Field].
+  void addExpression(String expression, {bool descending = false}) {
+    final direction = descending ? ' DESC' : ' ASC';
+    _clauses.add(expression + direction);
+  }
+
   @override
   String get clause {
     if (_clauses.isEmpty) return '';

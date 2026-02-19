@@ -20,6 +20,14 @@ class SelectClause implements QueryClause {
     _fields.add('${table.$name}.*');
   }
 
+  /// Add a raw SQL expression to the SELECT list.
+  ///
+  /// Used for computed expressions like `ts_rank(...)`, `ts_headline(...)`,
+  /// or `similarity(...)` that cannot be expressed as a simple [Field].
+  void addExpression(String expression) {
+    _fields.add(expression);
+  }
+
   @override
   SelectClause clone() {
     final c = SelectClause();

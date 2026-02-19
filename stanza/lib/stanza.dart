@@ -11,6 +11,7 @@ export 'src/insert/insert_query.dart';
 export 'src/insert/conflict_clause.dart';
 export 'src/delete/delete_query.dart';
 export 'src/query_result.dart';
+export 'src/shared/fts_config.dart';
 export 'src/stanza_exception.dart';
 
 // Schema types needed by generated code ($schema getter)

@@ -3,6 +3,7 @@ import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
 import 'package:stanza/src/select/join_clause.dart';
+import 'package:stanza/src/shared/fts_config.dart';
 import 'package:stanza/src/shared/where_clause.dart';
 import 'package:stanza/src/select/having_clause.dart';
 import 'package:stanza/src/select/group_by_clause.dart';
@@ -10,6 +11,7 @@ import 'package:stanza/src/select/order_by_clause.dart';
 import 'package:stanza/src/select/limit_clause.dart';
 import 'package:stanza/src/select/offset_clause.dart';
 import 'package:stanza/src/table.dart';
+import 'package:stanza/src/value_substitution.dart';
 
 /// Base class for a select query.
 ///
@@ -128,6 +130,119 @@ class SelectQuery extends Query with WhereClause, HavingClause {
           'Cannot have more than one offset clause in a query.');
     }
     _offsetClause = OffsetClause(i);
+  }
+
+  /// Add a full-text search rank expression to SELECT and optionally ORDER BY.
+  ///
+  /// Produces `ts_rank(to_tsvector('config', field), tsquery('config', @param)) AS alias`
+  /// in the SELECT list, and optionally adds it to ORDER BY DESC.
+  ///
+  /// [field] is the text column to search.
+  /// [query] is the search text (parameterized automatically).
+  /// [alias] is the column alias for the rank score (default: 'rank').
+  /// [config] specifies the text search dictionary (default: english).
+  /// [queryType] specifies the tsquery parser (default: plain).
+  /// [orderByRank] if true, adds ORDER BY rank DESC (default: true).
+  void selectRank(
+    Field field,
+    String query, {
+    String alias = 'rank',
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+    bool orderByRank = true,
+  }) {
+    final sub = ValueSub(
+        '${field.qualifiedName.replaceAll('.', '_')}_rank', query);
+    addSubstitution(sub);
+    final tsqueryFn = switch (queryType) {
+      FtsQueryType.plain => 'plainto_tsquery',
+      FtsQueryType.websearch => 'websearch_to_tsquery',
+      FtsQueryType.phrase => 'phraseto_tsquery',
+    };
+    final expr =
+        "ts_rank(to_tsvector('${config.value}', ${field.qualifiedName}), "
+        "$tsqueryFn('${config.value}', ${sub.token}))";
+    _selectClause.addExpression('$expr AS $alias');
+    if (orderByRank) {
+      _orderByClause.addExpression(expr, descending: true);
+    }
+  }
+
+  /// Add a full-text search headline expression to SELECT.
+  ///
+  /// Produces `ts_headline('config', field, tsquery('config', @param), 'options') AS alias`
+  /// in the SELECT list. Headlines produce highlighted text snippets.
+  ///
+  /// [field] is the text column to produce headlines from.
+  /// [query] is the search text (parameterized automatically).
+  /// [alias] is the column alias for the headline (default: 'headline').
+  /// [config] specifies the text search dictionary (default: english).
+  /// [queryType] specifies the tsquery parser (default: plain).
+  /// [options] is the PostgreSQL headline options string
+  ///   (e.g., `'StartSel=<b>, StopSel=</b>, MaxWords=35, MinWords=15'`).
+  void selectHeadline(
+    Field field,
+    String query, {
+    String alias = 'headline',
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+    String? options,
+  }) {
+    final sub = ValueSub(
+        '${field.qualifiedName.replaceAll('.', '_')}_headline', query);
+    addSubstitution(sub);
+    final tsqueryFn = switch (queryType) {
+      FtsQueryType.plain => 'plainto_tsquery',
+      FtsQueryType.websearch => 'websearch_to_tsquery',
+      FtsQueryType.phrase => 'phraseto_tsquery',
+    };
+    final optionsStr = options != null ? ", '$options'" : '';
+    final expr =
+        "ts_headline('${config.value}', ${field.qualifiedName}, "
+        "$tsqueryFn('${config.value}', ${sub.token})$optionsStr)";
+    _selectClause.addExpression('$expr AS $alias');
+  }
+
+  /// Add a trigram similarity score to SELECT and optionally ORDER BY.
+  ///
+  /// Produces `similarity(field, @param) AS alias` in the SELECT list,
+  /// and optionally adds ORDER BY similarity DESC.
+  /// Requires the `pg_trgm` extension to be enabled in PostgreSQL.
+  ///
+  /// [field] is the text column to compare.
+  /// [text] is the comparison text (parameterized automatically).
+  /// [alias] is the column alias for the score (default: 'similarity_score').
+  /// [orderBySimilarity] if true, adds ORDER BY similarity DESC (default: true).
+  void selectSimilarity(
+    Field field,
+    String text, {
+    String alias = 'similarity_score',
+    bool orderBySimilarity = true,
+  }) {
+    final sub = ValueSub(
+        '${field.qualifiedName.replaceAll('.', '_')}_sim', text);
+    addSubstitution(sub);
+    final expr = 'similarity(${field.qualifiedName}, ${sub.token})';
+    _selectClause.addExpression('$expr AS $alias');
+    if (orderBySimilarity) {
+      _orderByClause.addExpression(expr, descending: true);
+    }
+  }
+
+  /// Order by trigram distance (ascending — most similar first).
+  ///
+  /// Produces `ORDER BY field <-> @param ASC`.
+  /// Uses the trigram distance operator which is GiST-index-friendly.
+  /// Requires the `pg_trgm` extension to be enabled in PostgreSQL.
+  ///
+  /// [field] is the text column to compare.
+  /// [text] is the comparison text (parameterized automatically).
+  void orderByDistance(Field field, String text) {
+    final sub = ValueSub(
+        '${field.qualifiedName.replaceAll('.', '_')}_dist', text);
+    addSubstitution(sub);
+    _orderByClause.addExpression(
+        '${field.qualifiedName} <-> ${sub.token}');
   }
 
   /// Reproduce a partial query to use in a loop or other dynamic pattern.

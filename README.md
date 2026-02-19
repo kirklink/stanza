@@ -20,6 +20,8 @@ A type-safe PostgreSQL query builder for Dart with code generation.
   - [aggregates](#aggregates)
   - [transactions](#transactions)
   - [streaming results](#streaming-results)
+  - [full-text search](#full-text-search)
+  - [trigram similarity](#trigram-similarity)
   - [raw SQL](#raw-sql)
   - [print a query](#print-a-query)
   - [fork a query](#fork-a-query)
@@ -299,11 +301,16 @@ Each returns a `WhereOperation` with these comparison methods:
 | `.isBefore(dt)` | `DateTime` | `< dt` |
 | `.isAfter(dt)` | `DateTime` | `> dt` |
 | `.isOn(dt)` | `DateTime` | `= dt` |
+| `.fullTextMatches(s, {config, queryType})` | `String` | `to_tsvector(...) @@ tsquery(...)` |
+| `.isSimilarTo(s)` | `String` | `field % s` (pg_trgm) |
+| `.isWordSimilarTo(s)` | `String` | `s %> field` (pg_trgm) |
 | `.raw(sql)` | `String` | raw SQL condition |
 
 **Note**: `.isEqualTo()` accepts `num` only. For string equality, use `.matches()` with `caseSensitive: true`.
 
 **Note**: `.isIn()` and `.isNotIn()` throw `StanzaException` if passed an empty list.
+
+**Note**: `.fullTextMatches()`, `.isSimilarTo()`, and `.isWordSimilarTo()` require PostgreSQL extensions (`pg_trgm` for trigram operations).
 
 Brackets can group conditions:
 
@@ -446,6 +453,96 @@ await stanza.run((session) async {
     process(row);
   }
 });
+```
+
+### full-text search
+
+Stanza has first-class support for PostgreSQL full-text search. All search text is parameterized automatically.
+
+**WHERE — match documents:**
+
+```dart
+// Plain text search (words connected with &)
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.body).fullTextMatches('cats dogs');
+
+// Google-like syntax: quoting, negation, OR
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.body).fullTextMatches('"exact phrase" cats -dogs',
+      queryType: FtsQueryType.websearch);
+
+// Phrase search (words must appear in order)
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.body).fullTextMatches('fat cats',
+      queryType: FtsQueryType.phrase);
+
+// Non-English language
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.body).fullTextMatches('gatos',
+      config: FtsConfig.spanish);
+```
+
+**SELECT — relevance ranking and highlighted snippets:**
+
+```dart
+var q = SelectQuery(table)
+  ..selectStar()
+  ..selectRank(table.body, 'database optimization')
+  ..selectHeadline(table.body, 'database optimization',
+      options: 'StartSel=<b>, StopSel=</b>, MaxWords=35')
+  ..where(table.body).fullTextMatches('database optimization',
+      queryType: FtsQueryType.websearch);
+```
+
+`selectRank()` adds `ts_rank(...)` to SELECT and ORDER BY DESC by default. Pass `orderByRank: false` to skip automatic ordering.
+
+`selectHeadline()` adds `ts_headline(...)` to SELECT. Use the `options` parameter for PostgreSQL headline formatting.
+
+### trigram similarity
+
+Trigram similarity enables fuzzy matching — finding results despite typos or partial matches. Requires the `pg_trgm` extension (`CREATE EXTENSION IF NOT EXISTS pg_trgm`).
+
+**WHERE — fuzzy match:**
+
+```dart
+// Match when similarity exceeds the default threshold (0.3)
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.name).isSimilarTo('jonh');  // finds "john"
+
+// Word similarity (better for short queries against longer text)
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.description).isWordSimilarTo('cat');
+```
+
+**SELECT — similarity score and distance ordering:**
+
+```dart
+// Add similarity score to results, auto-ordered by most similar
+var q = SelectQuery(table)
+  ..selectStar()
+  ..selectSimilarity(table.name, 'jonh')
+  ..where(table.name).isSimilarTo('jonh');
+
+// GiST-index-friendly distance ordering
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.name).isSimilarTo('jonh')
+  ..orderByDistance(table.name, 'jonh');
+```
+
+**Combined FTS + fuzzy fallback:**
+
+```dart
+var q = SelectQuery(table)
+  ..selectStar()
+  ..where(table.body).fullTextMatches('database')
+  ..or(table.title).isSimilarTo('database');
 ```
 
 ### raw SQL
