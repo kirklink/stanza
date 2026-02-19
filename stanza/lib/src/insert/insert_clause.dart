@@ -2,33 +2,58 @@ import 'package:stanza/src/query.dart';
 import 'package:stanza/src/value_substitution.dart';
 import 'package:stanza/src/query_clause.dart';
 
-// Stores and produces the COLUMNS and VALUES clauses of an insert query.
+/// Stores and produces the COLUMNS and VALUES clauses of an insert query.
 class InsertClause implements QueryClause {
-  var _columns = List<String>();
-  var _values = List<String>();
+  List<String> _columns = [];
+  List<List<String>> _valueTuples = [];
 
-  // Returns the COLUMNS and VALUES parts of an insert query.
+  /// Whether this clause contains batch (multi-row) values.
+  bool get isBatch => _valueTuples.length > 1;
+
+  /// Returns the COLUMNS and VALUES parts of an insert query.
+  @override
   String get clause {
-    String c = "(${_columns.join(', ')})";
-    String v = "(${_values.join(', ')})";
-    return "$c VALUES $v";
+    final c = '(${_columns.join(', ')})';
+    final tuples =
+        _valueTuples.map((row) => '(${row.join(', ')})').join(', ');
+    return '$c VALUES $tuples';
   }
 
-  // Insert the 'value' into the provided 'field' and pass the query through
-  // to complete the query chaining.
+  /// Insert the 'value' into the provided 'field' and pass the query through
+  /// to complete the query chaining.
   void insert(String field, dynamic value, Query q) {
-    // Substitue values for tokens in the query.
-    var sub = ValueSub(field, value);
+    final sub = ValueSub(field, value);
     q.addSubstitution(sub);
     _columns.add(field);
-    _values.add(sub.token);
+    if (_valueTuples.isEmpty) _valueTuples.add([]);
+    _valueTuples[0].add(sub.token);
   }
 
-  // Clone the insert part of a query to be used in a query fork.
+  /// Add a complete row of values for batch insert.
+  ///
+  /// The first call sets the column list from the map keys.
+  /// Subsequent calls must have the same columns (enforced by using
+  /// the same [Table.toDb] method).
+  void addRow(Map<String, dynamic> map, Query q) {
+    if (_columns.isEmpty) {
+      _columns = map.keys.toList();
+    }
+    final row = <String>[];
+    for (final key in _columns) {
+      final sub = ValueSub(key, map[key]);
+      q.addSubstitution(sub);
+      row.add(sub.token);
+    }
+    _valueTuples.add(row);
+  }
+
+  /// Clone the insert part of a query to be used in a query fork.
+  @override
   InsertClause clone() {
-    var x = InsertClause();
+    final x = InsertClause();
     x._columns = List.from(_columns);
-    x._values = List.from(_values);
+    x._valueTuples =
+        _valueTuples.map((row) => List<String>.from(row)).toList();
     return x;
   }
 }

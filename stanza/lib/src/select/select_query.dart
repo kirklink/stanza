@@ -2,7 +2,9 @@ import 'package:stanza/src/stanza_exception.dart';
 import 'package:stanza/src/query.dart';
 import 'package:stanza/src/field.dart';
 import 'package:stanza/src/select/select_clause.dart';
+import 'package:stanza/src/select/join_clause.dart';
 import 'package:stanza/src/shared/where_clause.dart';
+import 'package:stanza/src/select/having_clause.dart';
 import 'package:stanza/src/select/group_by_clause.dart';
 import 'package:stanza/src/select/order_by_clause.dart';
 import 'package:stanza/src/select/limit_clause.dart';
@@ -11,36 +13,47 @@ import 'package:stanza/src/table.dart';
 
 /// Base class for a select query.
 ///
-/// Takes the generated code table from a [StanzaEntity]
-class SelectQuery extends Query with WhereClause {
-  var _selectClause = SelectClause();
+/// Takes the generated code table from a [StanzaEntity].
+class SelectQuery extends Query with WhereClause, HavingClause {
+  SelectClause _selectClause = SelectClause();
+  List<JoinClause> _joins = [];
   OrderByClause _orderByClause = OrderByClause();
-  GroupByClause _groupByClause;
-  LimitClause _limitClause;
-  OffsetClause _offsetClause;
+  GroupByClause? _groupByClause;
+  LimitClause? _limitClause;
+  OffsetClause? _offsetClause;
+  bool _distinct = false;
 
-  SelectQuery(Table table) : super(table);
+  SelectQuery(super.table);
 
+  @override
   String statement({bool pretty = false}) {
-    var br = pretty ? '\n' : ' ';
-    var select = _selectClause?.clause;
-    var where = whereClauses;
-    var limit = _limitClause?.clause;
-    var offset = _offsetClause?.clause;
-    var group = _groupByClause?.clause;
-    var order = _orderByClause?.clause;
+    final br = pretty ? '\n' : ' ';
+    final select = _selectClause.clause;
+    final where = whereClauses;
+    final limit = _limitClause?.clause;
+    final offset = _offsetClause?.clause;
+    final group = _groupByClause?.clause;
+    final order = _orderByClause.isEmpty ? null : _orderByClause.clause;
 
-    var buf = StringBuffer();
-    buf.writeAll(['SELECT ', select]);
-    if (table != null) buf.writeAll([br, 'FROM ', table.$name]);
+    final buf = StringBuffer();
+    buf.writeAll(['SELECT ', if (_distinct) 'DISTINCT ', select]);
+    buf.writeAll([br, 'FROM ', table.$name]);
+    for (final join in _joins) {
+      buf.writeAll([br, join.clause]);
+    }
+    final having = havingClauses;
     if (where != null) buf.writeAll([br, where]);
     if (group != null) buf.writeAll([br, group]);
+    if (having != null) buf.writeAll([br, having]);
     if (order != null) buf.writeAll([br, order]);
     if (limit != null) buf.writeAll([br, limit]);
     if (offset != null) buf.writeAll([br, offset]);
-    buf.write(';');
-    var query = buf.toString();
-    return query;
+    return buf.toString();
+  }
+
+  /// Mark this query as SELECT DISTINCT.
+  void distinct() {
+    _distinct = true;
   }
 
   /// Select a list of [Field]s from a [StanzaEntity] table.
@@ -49,11 +62,39 @@ class SelectQuery extends Query with WhereClause {
   }
 
   /// Select all the [Field]s from a [StanzaEntity] table.
-  void selectStar(Table table) {
-    _selectClause.star(table);
+  void selectStar([Table? t]) {
+    _selectClause.star(t ?? table);
   }
 
-  /// Group a select query by a list of [Field]s
+  /// Add an INNER JOIN to this query.
+  JoinClause innerJoin(Table joinTable) {
+    final join = JoinClause(JoinType.inner, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a LEFT JOIN to this query.
+  JoinClause leftJoin(Table joinTable) {
+    final join = JoinClause(JoinType.left, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a RIGHT JOIN to this query.
+  JoinClause rightJoin(Table joinTable) {
+    final join = JoinClause(JoinType.right, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Add a CROSS JOIN to this query.
+  JoinClause crossJoin(Table joinTable) {
+    final join = JoinClause(JoinType.cross, joinTable);
+    _joins.add(join);
+    return join;
+  }
+
+  /// Group a select query by a list of [Field]s.
   void groupBy(List<Field> fields) {
     if (_groupByClause != null) {
       throw StanzaException(
@@ -90,14 +131,19 @@ class SelectQuery extends Query with WhereClause {
   }
 
   /// Reproduce a partial query to use in a loop or other dynamic pattern.
+  @override
   SelectQuery fork() {
-    var q = SelectQuery(table);
+    final q = SelectQuery(table);
     q.importSubstitutionValues(substitutionValues);
+    q._distinct = _distinct;
     q._selectClause = _selectClause.clone();
+    q._joins = _joins.map((j) => j.clone()).toList();
     q._orderByClause = _orderByClause.clone();
     q._groupByClause = _groupByClause?.clone();
     q._limitClause = _limitClause?.clone();
     q._offsetClause = _offsetClause?.clone();
+    q.importWhereClauses(cloner());
+    q.importHavingClauses(havingCloner());
     return q;
   }
 }

@@ -1,0 +1,195 @@
+import 'package:postgres/postgres.dart' as pg;
+import 'package:stanza/src/delete/delete_query.dart';
+import 'package:stanza/src/postgres_credentials.dart';
+import 'package:stanza/src/query.dart';
+import 'package:stanza/src/query_result.dart';
+import 'package:stanza/src/stanza_exception.dart';
+import 'package:stanza/src/update/update_query.dart';
+
+/// Callback type for running multiple queries on a single session.
+typedef SessionBlock<T> = Future<T> Function(StanzaSession session);
+
+/// A wrapper around a postgres v3 session for executing queries.
+///
+/// Used inside [Stanza.run] and [Stanza.runTransaction] callbacks.
+class StanzaSession {
+  final pg.Session _session;
+
+  StanzaSession._(this._session);
+
+  /// Executes a [Query] within this session.
+  ///
+  /// [overrideSafety]: Set to true to allow UPDATE/DELETE queries without WHERE clauses.
+  Future<QueryResult<T>> execute<T>(Query query,
+      {bool overrideSafety = false}) async {
+    _checkSafety(query, overrideSafety);
+    final result = await _session.execute(
+      pg.Sql.named(query.statement()),
+      parameters: query.substitutionValues,
+    );
+    return _toQueryResult<T>(result, query);
+  }
+}
+
+/// The main class for creating and using the Stanza database interface.
+///
+/// Stanza wraps a postgres v3 connection [Pool] and provides a type-safe
+/// query execution layer.
+///
+/// ```dart
+/// final stanza = Stanza.tcp(creds, maxConnections: 10);
+/// final result = await stanza.execute<Animal>(selectQuery);
+/// ```
+class Stanza {
+  final pg.Pool _pool;
+
+  Stanza._(this._pool);
+
+  /// Create a Stanza instance using a TCP connection.
+  ///
+  /// [maxConnections]: Maximum number of connections in the pool (default: 25).
+  factory Stanza.tcp(
+    PostgresCredentials creds, {
+    int maxConnections = 25,
+  }) {
+    final id = '${creds.host}:${creds.port}|${creds.db}';
+    if (!_instances.containsKey(id)) {
+      final pool = pg.Pool.withEndpoints(
+        [
+          pg.Endpoint(
+            host: creds.host,
+            port: creds.port,
+            database: creds.db,
+            username: creds.username,
+            password: creds.password,
+          ),
+        ],
+        settings: pg.PoolSettings(
+          maxConnectionCount: maxConnections,
+        ),
+      );
+      _instances[id] = Stanza._(pool);
+    }
+    return _instances[id]!;
+  }
+
+  /// Create a Stanza instance using a Unix socket connection.
+  ///
+  /// [maxConnections]: Maximum number of connections in the pool (default: 25).
+  factory Stanza.unix(
+    PostgresCredentials creds, {
+    int maxConnections = 25,
+  }) {
+    final id = 'unix:${creds.host}|${creds.db}';
+    if (!_instances.containsKey(id)) {
+      final pool = pg.Pool.withEndpoints(
+        [
+          pg.Endpoint(
+            host: creds.host,
+            port: creds.port,
+            database: creds.db,
+            username: creds.username,
+            password: creds.password,
+            isUnixSocket: true,
+          ),
+        ],
+        settings: pg.PoolSettings(
+          maxConnectionCount: maxConnections,
+        ),
+      );
+      _instances[id] = Stanza._(pool);
+    }
+    return _instances[id]!;
+  }
+
+  /// Retrieve a cached Stanza instance by its database reference.
+  factory Stanza.getByDatabaseReference(
+      String host, int port, String database) {
+    final id = '$host:$port|$database';
+    if (!_instances.containsKey(id)) {
+      throw StanzaException(
+          'No connection has been initialized for $host:$port|$database');
+    }
+    return _instances[id]!;
+  }
+
+  /// Execute a single query.
+  ///
+  /// The pool manages the connection lifecycle automatically.
+  ///
+  /// [overrideSafety]: Set to true to allow UPDATE/DELETE queries without WHERE clauses.
+  Future<QueryResult<T>> execute<T>(Query query,
+      {bool overrideSafety = false}) async {
+    _checkSafety(query, overrideSafety);
+    final result = await _pool.execute(
+      pg.Sql.named(query.statement()),
+      parameters: query.substitutionValues,
+    );
+    return _toQueryResult<T>(result, query);
+  }
+
+  /// Execute multiple queries on the same connection.
+  ///
+  /// ```dart
+  /// final result = await stanza.run((session) async {
+  ///   await session.execute(insertQuery);
+  ///   return session.execute<Animal>(selectQuery);
+  /// });
+  /// ```
+  Future<T> run<T>(SessionBlock<T> block) async {
+    return _pool.run((session) async {
+      return block(StanzaSession._(session));
+    });
+  }
+
+  /// Execute multiple queries within a database transaction.
+  ///
+  /// All queries in the block are executed atomically. If any query fails,
+  /// the entire transaction is rolled back.
+  ///
+  /// ```dart
+  /// final result = await stanza.runTransaction((session) async {
+  ///   await session.execute(insertQuery);
+  ///   return session.execute<Animal>(selectQuery);
+  /// });
+  /// ```
+  Future<T> runTransaction<T>(SessionBlock<T> block) async {
+    return _pool.runTx((session) async {
+      return block(StanzaSession._(session));
+    });
+  }
+
+  /// Close the connection pool and release all resources.
+  Future<void> close() async {
+    await _pool.close();
+    // Remove from cache
+    _instances.removeWhere((_, v) => identical(v, this));
+  }
+
+  /// List all currently cached instance IDs.
+  static List<String> get listInstances => _instances.keys.toList();
+
+  static final _instances = <String, Stanza>{};
+}
+
+/// Checks that UPDATE/DELETE queries have WHERE clauses unless overridden.
+void _checkSafety(Query query, bool overrideSafety) {
+  if (overrideSafety) return;
+  final isUnsafe = (query is DeleteQuery && query.whereClauses == null) ||
+      (query is UpdateQuery && query.whereClauses == null);
+  if (isUnsafe) {
+    throw StanzaException(
+      'This UPDATE or DELETE query has no WHERE clauses, which may be unsafe. '
+      "Set 'overrideSafety: true' to execute it anyway.",
+    );
+  }
+}
+
+/// Converts a postgres v3 Result to a Stanza QueryResult.
+QueryResult<T> _toQueryResult<T>(pg.Result result, Query query) {
+  final rows = <Map<String, dynamic>>[];
+  for (final row in result) {
+    rows.add(row.toColumnMap());
+  }
+  return QueryResult<T>(rows, query.table);
+}

@@ -2,21 +2,23 @@
 ///
 /// A [Field] is the generated code representation of Dart class properties that provide
 /// an interface with database fields. A [Field] produces the corresponding field name of database fields
-/// and also contain functions to manipulate fields in Postgresql queries.
+/// and also contains functions to manipulate fields in PostgreSQL queries.
 class Field {
   final String _tableName;
   final String _fieldName;
-  String _operation;
-  String _newName;
+  String? _operation;
+  String? _newName;
 
   Field(this._tableName, this._fieldName);
 
   String get sql {
-    var buf = StringBuffer();
-    if (_operation != null) buf.write("${_operation}(");
-    buf.write("$_tableName.$_fieldName");
-    if (_operation != null) buf.write(")");
-    if (_newName != null) buf.write(" AS $_newName");
+    final buf = StringBuffer();
+    final op = _operation;
+    final alias = _newName;
+    if (op != null) buf.write('$op(');
+    buf.write('$_tableName.$_fieldName');
+    if (op != null) buf.write(')');
+    if (alias != null) buf.write(' AS $alias');
     return buf.toString();
   }
 
@@ -24,9 +26,18 @@ class Field {
   String get name => _fieldName;
 
   /// The String representation of the corresponding table and field name 'tableName.fieldName'
-  String get qualifiedName => "$_tableName.$_fieldName";
+  String get qualifiedName => '$_tableName.$_fieldName';
 
-  /// Rename a field to a corresponding database field name. Postgresql AS.
+  /// The expression form of this field, including any aggregate wrapper.
+  ///
+  /// Returns `COUNT(tableName.fieldName)` when an aggregate is set,
+  /// or just `tableName.fieldName` otherwise.
+  String get expressionName {
+    if (_operation != null) return '$_operation($qualifiedName)';
+    return qualifiedName;
+  }
+
+  /// Rename a field to a corresponding database field name. PostgreSQL AS.
   ///
   /// Can also be used to rename calculated aggregate field names.
   Field rename(String newName) {

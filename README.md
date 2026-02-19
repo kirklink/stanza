@@ -1,291 +1,613 @@
 # stanza
 
-- [stanza](#stanza)
-  * [overview](#overview)
-  * [what it is](#what-it-is)
-  * [what it is not](#what-it-is-not)
-  * [how to use it](#how-to-use-it)
-    + [annotate a class](#annotate-a-class)
-    + [set up the database credentials](#set-up-the-database-credentials)
-    + [create a stanza instance](#create-a-stanza-instance)
-    + [build a query](#build-a-query)
-    + [run the query](#run-the-query)
-    + [use aggregates in a query](#use-aggregates-in-a-query)
-    + [execute a query in a transaction](#execute-a-query-in-a-transaction)
-    + [keep a connection open](#keep-a-connection-open)
-    + [print a query](#print-a-query)
-    + [fork a query](#fork-a-query)
+A type-safe PostgreSQL query builder for Dart with code generation.
+
+- [overview](#overview)
+- [what it is](#what-it-is)
+- [what it is not](#what-it-is-not)
+- [setup](#setup)
+- [how to use it](#how-to-use-it)
+  - [annotate a class](#annotate-a-class)
+  - [connect to the database](#connect-to-the-database)
+  - [build and run queries](#build-and-run-queries)
+  - [SELECT queries](#select-queries)
+  - [INSERT queries](#insert-queries)
+  - [UPDATE queries](#update-queries)
+  - [DELETE queries](#delete-queries)
+  - [WHERE clauses](#where-clauses)
+  - [JOINs](#joins)
+  - [RETURNING clause](#returning-clause)
+  - [aggregates](#aggregates)
+  - [transactions](#transactions)
+  - [streaming results](#streaming-results)
+  - [raw SQL](#raw-sql)
+  - [print a query](#print-a-query)
+  - [fork a query](#fork-a-query)
+- [schema management](#schema-management)
+  - [schema annotations](#schema-annotations)
+  - [migration CLI](#migration-cli)
+  - [how it works](#how-it-works)
 
 ## overview
-Stanza is a library for writing basic Postgresql statements in a type safe, Dart-y syntax. The goal has been to keep the API simple and clear while speeding up construction of Postgresql queries when using Dart on the server. It started as a hobby project but evolved enough to make it potentially useful to others. If you are interested in contributing to this library, please get in touch.
+
+Stanza is a library for writing PostgreSQL statements in a type-safe, Dart-native syntax. It pairs a fluent query builder with code generation to give you typed table accessors, field references, and result mapping — without writing raw SQL.
 
 ## what it is
-Stanza sits on top of [Stable Kernel's postgresql-dart](https://github.com/stablekernel/postgresql-dart) library for it's database connection. Further, it leverages some of existing functionality, such as type conversions and transactions, to interact with a Postgresql database. This library, and the companion stanza_builder library, add a layer of code generation to help structure Dart class models and compose simple queries using the type safe properties of the Dart class.
+
+Stanza sits on top of the [postgres](https://pub.dev/packages/postgres) (v3) package for database connectivity with connection pooling and SSL/TLS support. The companion `stanza_builder` package uses `source_gen` and `build_runner` to generate typed `Table` classes from annotated Dart models, providing compile-time safety for query construction.
 
 ## what it is not
-Stanza is not an ORM and does not directly manage database objects (i.e., creating tables or performing migrations) although does provide a type safe interface between Dart classes and the database. There is currently no magic around query optimization or even joins although the API is planned to include joins. It is simple but does offer a user-friendly API for the queries it supports and makes interacting with a database easier.
 
-## how to use it
-### annotate a class
-Include stanza as a dependency and stanza_builder as a dev dependency in the pubspec.yaml file. build_runner is also a dev dependency to run the code generation.
+Stanza is not an ORM. It does not track object state or manage entity lifecycle. It gives you a type-safe query builder with optional schema management and leaves connection lifecycle and application architecture to you.
+
+## setup
+
+Add stanza as a dependency and stanza_builder as a dev dependency:
 
 ```yaml
-...
 dependencies:
-  stanza: '^0.0.8'
+  stanza:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza
+      ref: feature/modernization
+
 dev_dependencies:
-  build_runner: any
-  stanza_builder: '^0.0.8'
-...
+  build_runner: ^2.4.0
+  stanza_builder:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza_builder
+      ref: feature/modernization
 ```
 
-Create a model class to mirror your database structure and annotate the class with stanza decorations.
+## how to use it
+
+### annotate a class
+
+Create a model class that mirrors your database table and annotate it with stanza decorators:
 
 ```dart
 import 'package:stanza/annotations.dart';
+import 'package:stanza/stanza.dart';
 
 part 'animal.g.dart';
 
 @StanzaEntity(name: 'mammal', snakeCase: true)
 class Animal {
-    @StanzaField(readOnly: true)
-    int id;
-    String name;
-    @StanzaField(name: 'number_of_legs')
-    int legs;
-    String color;
-    DateTime createdAt;
+  @PrimaryKey()
+  @StanzaField(readOnly: true)
+  late int id;
+  late String name;
+  @StanzaField(name: 'number_of_legs')
+  late int legs;
+  late String color;
+  late DateTime createdAt;
 
-    Animal();
+  @BelongsTo(Owner, onDelete: 'CASCADE')
+  late int ownerId;
 
-    static _$AnimalTable $table = _$AnimalTable();
+  Animal();
+
+  static final _$AnimalTable $table = _$AnimalTable();
 }
 ```
 
-The example above outlines the options that are currently available.
-* `StanzaEntity(name: 'mammal')` means that the class will be renamed to correspond with a different database table name (in this case, the table name is 'mammal').
-* `StazaEntity(snakeCase: true)` means that the entity and all members, that don't have an explicit 'name' parameter, will be re-written in snake_case to correspond with database fields. For example, the class property createdAt will be renamed created_at. However, the property legs will not be re-written to snake_case because it has an explicit name parameter.
-* `StanzaField(name: 'number_of_legs')` means that the field will be renamed to correspond with a different field name in the database (in this case, the field is 'number_of_legs').
-* `StanzaField(readOnly: true)` means that the Dart model will not write this property to the database, but it will retrieve this property from the database. It's a simple way to handle fields that are generated in the database, especially incremented id's.
-* `static _$AnimalTable $table = _$AnimalTable();` comes from the generated code and produces the interface to interact with a database table. "Table" is appended to the class name to create the table interaction class and by convention it is called `$table` to indicate it is a generated property.
- 
- Don't forget to import the generated code with `part 'animal.g.dart';`, which will earn an exception if it isn't included.
- 
- Stanza plays nice with other generated code, such as json_serializable, so you can use the same `part` statement and reach all the generated code and have both a front-/back-end interface via json_serializable and a database interface via stanza through the same Dart model class.
+**Annotation reference:**
 
- Run `pub run build_runner build` to generate the Stanza code. A file called 'original_file_name.g.dart' will be created which is automatically "appended" to the original fine with the `part` statement.
+| Annotation | Level | Purpose |
+|---|---|---|
+| `@StanzaEntity(name: 'mammal')` | Class | Map class to a different table name |
+| `@StanzaEntity(snakeCase: true)` | Class | Auto-convert all field names to snake_case |
+| `@StanzaEntity(readOnly: true)` | Class | Prevent writes for the entire entity |
+| `@PrimaryKey()` | Field | Mark as primary key (serial by default) |
+| `@PrimaryKey(serial: false)` | Field | Primary key without auto-increment |
+| `@StanzaField(readOnly: true)` | Field | Exclude from writes (e.g., auto-increment IDs) |
+| `@StanzaField(name: 'db_column')` | Field | Map field to a different column name |
+| `@StanzaField(ignore: true)` | Field | Skip field entirely in generated code |
+| `@StanzaField(type: 'jsonb')` | Field | Override inferred PostgreSQL type |
+| `@StanzaField(unique: true)` | Field | Add a UNIQUE constraint |
+| `@StanzaField(nullable: false)` | Field | Override nullability inference |
+| `@StanzaField(defaultValue: 'NOW()')` | Field | SQL default expression |
+| `@BelongsTo(Owner)` | Field | Declare a foreign key relationship for typed JOINs |
+| `@BelongsTo(Owner, onDelete: 'CASCADE')` | Field | FK with referential action on delete |
 
-### set up the database credentials
-Create a `PostgresCredentials` object with the details of the database connection:
+Run code generation to produce the typed table class:
 
-```dart
-final creds = PostgresCredentials(
-  hostnameOrIp,
-  portNumber,
-  databaseName,
-  username,
-  databasePassword
-);
+```bash
+dart run build_runner build --delete-conflicting-outputs
 ```
 
-As a side note, there are some ways to make this more reusable, such as creating a class that reproduces creds when needed. For example:
+This generates a file with `_$AnimalTable` containing typed `Field` accessors for each property, plus `fromDb()` and `toDb()` mapping methods. For `@BelongsTo` fields, it also generates typed JOIN helpers and result extraction methods.
 
-```dart
-class DbCreds {
-  static String _host = 'hostname';
-  static int _port = 5432;
-  static String _db = 'databaseName';
-  static String _user = 'userName';
-  static String _password = 'somethingSecure';
-  static PostgresCredentials creds = {
-    return PostgresCredentials(
-      DbCreds._host,
-      DbCreds._port,
-      DbCreds._db,
-      DbCreds._user,
-      DbCreds._password
-    );
-  };
-}
-```
+The `static final $table` accessor is the entry point for all query operations.
 
-There are other, better ways of achieving this repeatability, especially if some of the properties are being pulled from the environment, such as the database password. But this is a starting point.
-
-### create a stanza instance
+### connect to the database
 
 ```dart
 import 'package:stanza/stanza.dart';
 
-...
-var stanza = Stanza(creds, maxConnections: 20, timeout: 300);
-...
+// From a connection URL (recommended for cloud providers like Neon, Supabase):
+var stanza = Stanza.url('postgresql://user:pass@host.neon.tech/db?sslmode=require');
+
+// From explicit credentials:
+var creds = PostgresCredentials('localhost', 5432, 'mydb', 'user', 'password');
+var stanza = Stanza.tcp(creds, maxConnections: 10);
+
+// With full connection configuration:
+var stanza = Stanza.tcp(creds,
+  maxConnections: 25,
+  sslMode: SslMode.require,          // disable, require, or verifyFull
+  connectTimeout: Duration(seconds: 15),
+  queryTimeout: Duration(seconds: 30),
+  applicationName: 'my-app',         // visible in pg_stat_activity
+);
+
+// Unix socket:
+var stanza = Stanza.unix(creds, maxConnections: 10);
 ```
 
-Note that 'timeout' is in seconds.
+`SslMode` is re-exported from `package:stanza/stanza.dart` — no need to import `package:postgres` directly.
 
-The defaults are 25 maxConnections and 600 seconds timeout.
+Stanza caches connection pools internally — calling the same constructor with the same connection details reuses the existing pool.
 
-The database interface is cached so the first time it is initiated, the parameters are set and the same paramaters are used for future instances. The interface is identified by the host, port, and database and the connections are pooled, so Stanza will not go over the maxConnections that are originally set if the same database interface is called multiple times. It also means multiple databases can be called from Stanza and they will each get their own cached parameters within Stanza.
-
-### build a query
+### build and run queries
 
 ```dart
 var table = Animal.$table;
 
-var select = SelectQuery(table)
-  ..selectFields([table.id, table.legs, table.color, table.createdAt])
-  ..where(table.legs).greaterThan(2)
+var query = SelectQuery(table)
+  ..selectStar()
+  ..where(table.color).matches('orange')
+  ..limit(10);
+
+var result = await stanza.execute<Animal>(query);
+for (var r in result.all) {
+  print(r.value?.name);
+}
+```
+
+Results are returned as `QueryResult<T>`:
+- `result.all` — full list of `Result<T>` objects
+- `result.first` — first result (or null)
+- `result.entities` — list of typed entity values only
+- `result.aggregates` — list of aggregate maps only
+- `result.isEmpty` / `result.isNotEmpty` / `result.length`
+
+Each `Result<T>` contains:
+- `.value` — the typed entity (mapped via `fromDb()`)
+- `.aggregate` — a `Map<String, dynamic>` of any extra columns (aggregates, aliased joins, etc.)
+
+### SELECT queries
+
+```dart
+var q = SelectQuery(table)
+  ..selectFields([table.id, table.name, table.color])
+  ..where(table.legs).isGreaterThan(2)
   ..and(table.color).matches('brown')
+  ..orderBy(table.name)
   ..orderBy(table.id, descending: true)
+  ..offset(20)
   ..limit(10);
 ```
 
-The API for building queries is much what one would expect and there are several conveniences built in.
+- `selectStar()` — select all fields
+- `selectFields([...])` — select specific fields
+- `distinct()` — `SELECT DISTINCT` to eliminate duplicate rows
+- `groupBy([...])` — GROUP BY clause
+- `having(field)` / `andHaving(field)` / `orHaving(field)` — HAVING clause (filter after GROUP BY, typically with aggregates)
+- `orderBy(field, {descending: false})` — ORDER BY (can be called multiple times)
+- `limit(n)` / `offset(n)` — pagination
 
-* SelectQuery
-  * `var selectQuery = SelectQuery(table)`
-  * `..selectFields([table.fieldName])` -> a list of fields to select from the table
-  * `..selectStar()` -> select all the fields from the table
-  * `..where(table.fieldName)`, `..and(table.fieldName)`, `..or(table.fieldName)` -> composable conditional clauses that currently supports :
-    * `.isNotNull()`
-    * `.isNull()`
-    * `.equalTo(num number)`
-    * `.greaterThan(num number)`
-    * `.greaterThanOrEqualTo(num number)`
-    * `.lessThan(num number)`
-    * `.lessThanOrEqualTo(num number)`
-    * `.matches(String string, {bool caseSensitive: false})`
-    * `.startsWith(String string, {bool caseSensitive: false})`
-    * `.endsWith(String string, {bool caseSensitive: false})`
-    * `.contains(String string, {bool caseSensitive: false})`
-    * `.isTrue()`
-    * `.isFalse()`
-    * `.isBefore(DateTime date)`
-    * `.isAfter(DateTime date)`
-    * `.isOn(DateTime date)`
-  * where/and/or clauses can also include opening and closing brackets to group clauses together
-    * 
-    ```dart
-    ..where(table.firstName).startsWith('e')
-    ..and(table.age).lessThan(20, openBracket: true)
-    ..or(table.age).greaterThan(40, closeBracket: true)
-    ```
-    * there is some simple checking for opened and closed brackets that will help limit errors when bracketing
-  * `..groupBy([table.fieldName])`
-  * `..orderBy(table.fieldName)`
-    * Multiple orderBy clauses can be provided and can be made descending with `..orderBy(table.fieldName, descending: true)`
-  * `..offset(10)` -> the number of records to offset
-  * `..limit(10)` -> the number of results to return
-* InsertQuery
-  * `var insertQuery = InsertQuery(table)`
-  * `..insert(table.fieldName, value)` -> insert a dynamic value into a field; this is composable and multiple fields can be inserted into the database
-  * OR `..insertEntity<Type>(entity)` -> will insert a complete model class and providing the type will ensure that only an intended class type is inserted
-* UpdateQuery
-  * `var updateQuery = UpdateQuery(table)`
-  * `..column(table.fieldName)` -> the target database field
-  * One of the following can be used to restrict the type supplied:
-    * `.number(num number)`
-    * `.integer(int integer)`
-    * `.float (double float)`
-    * `.string(String string)`
-    * `.datetime(DateTime datetime)`
-    * `.boolean(bool boolean)`
-  * Or a dynamic value can be provided with:
-    * `.any(dynamic value)`
-  * `..where(table.fieldName)` -> specify the conditions where the value(s) should be updated. See the where/and/or clause usage above in the SelectQuery explanation.
-
-
-### run the query
-When the program is ready to run the query, a connection obtained from Stanza, respecting the maxConnections configured, and the query can be executed.
+### INSERT queries
 
 ```dart
-var connection = await Stanza.connection();
-var result = await connection.execute<Type>(query);
+// Insert an entire entity:
+var animal = Animal()..name = 'Tiger'..legs = 4..color = 'orange';
+var q = InsertQuery(table)..insertEntity<Animal>(animal);
+
+// Or insert individual fields:
+var q = InsertQuery(table)
+  ..insert(table.name, 'Tiger')
+  ..insert(table.legs, 4)
+  ..insert(table.color, 'orange');
+
+// Batch insert (multiple entities in one statement):
+var q = InsertQuery(table)
+  ..insertEntities<Animal>([tiger, eagle, snake]);
+// Produces: INSERT INTO mammal (cols) VALUES (...), (...), (...)
 ```
 
-The result here is a list of the Dart class being queries and any associated aggregations (covered later). The query results can be accessed in a couple ways:
+Fields marked `readOnly` are automatically excluded from `insertEntity` and `insertEntities`.
 
-`result.all` is the full list of results
-`result.first` is the first result
-
-Each individual result contains a `.value`, which has all the properties of the original Dart class. It also contains a `.aggregate` if applicable, that has the results of query aggregates, if applicable.
-
-Going back to the original `Animal` class example above, we could cycle through the query results as follows (assuming we have built a select query, called animalSelectQuery, to select a bunch of animals from the database):
+### Upsert (ON CONFLICT)
 
 ```dart
-var result = await connection.execute<Animal>(animalSelectQuery);
-for (var animal in result.all) {
-  print(animal.value.name);
-}
+// Insert or update on conflict:
+var q = InsertQuery(table)
+  ..insertEntity<Animal>(animal)
+  ..onConflict(
+    target: [table.name],  // conflict column(s) — must have a unique constraint
+    doUpdate: (set) => set
+      ..column(table.color).string('updated-orange')
+      ..column(table.legs).integer(4),
+  )
+  ..returningStar();
+
+// Insert or skip on conflict:
+var q = InsertQuery(table)
+  ..insertEntity<Animal>(animal)
+  ..onConflictDoNothing(target: [table.name]);
 ```
-This will print all the animal names to the console.
 
-### use aggregates in a query
-Fields in a select query can be modified to produce aggregate results. Currently supported are COUNT, SUM, MIN, MAX and AVG. These can also be named AS.
+The `doUpdate` callback receives a `ConflictSetBuilder` with the same typed setters as UPDATE queries (`.string()`, `.integer()`, `.number()`, etc.).
+
+### UPDATE queries
 
 ```dart
-var query = SelectQuery(table)
-  ...selectFields([table.name, table.name.count().rename('name_count')]);
-var connection = await Stanza.connection();
-var result = await connection.execute(query);
+var q = UpdateQuery(table)
+  ..column(table.color).string('white')
+  ..column(table.legs).integer(4)
+  ..where(table.id).isEqualTo(1);
+```
+
+Typed setters prevent accidental type mismatches:
+- `.string(String)`, `.number(num)`, `.integer(int)`, `.float(double)`
+- `.boolean(bool)`, `.datetime(DateTime)`, `.any(dynamic)`
+
+**Safety**: UPDATE queries require a WHERE clause. Stanza will throw an exception if you try to execute an UPDATE without one, unless you explicitly pass `overrideSafety: true`.
+
+### DELETE queries
+
+```dart
+var q = DeleteQuery(table)
+  ..where(table.id).isEqualTo(1);
+```
+
+**Safety**: Like UPDATE, DELETE queries require a WHERE clause unless `overrideSafety: true` is passed.
+
+### WHERE clauses
+
+WHERE conditions are available on SELECT, UPDATE, and DELETE queries:
+
+```dart
+q.where(table.field)   // first condition
+q.and(table.field)     // AND
+q.or(table.field)      // OR
+```
+
+Each returns a `WhereOperation` with these comparison methods:
+
+| Method | Accepts | SQL |
+|---|---|---|
+| `.isEqualTo(n)` | `num` | `= n` |
+| `.isGreaterThan(n)` | `num` | `> n` |
+| `.isGreaterThanOrEqualTo(n)` | `num` | `>= n` |
+| `.isLessThan(n)` | `num` | `< n` |
+| `.isLessThanOrEqualTo(n)` | `num` | `<= n` |
+| `.matches(s, {caseSensitive})` | `String` | `= s` or `ILIKE s` |
+| `.startsWith(s, {caseSensitive})` | `String` | `LIKE 's%'` |
+| `.endsWith(s, {caseSensitive})` | `String` | `LIKE '%s'` |
+| `.contains(s, {caseSensitive})` | `String` | `LIKE '%s%'` |
+| `.isTrue()` | — | `= TRUE` |
+| `.isFalse()` | — | `= FALSE` |
+| `.isIn(list)` | `List<Object>` | `IN (@v0, @v1, ...)` |
+| `.isNotIn(list)` | `List<Object>` | `NOT IN (@v0, @v1, ...)` |
+| `.isBetween(low, high)` | `Object, Object` | `BETWEEN @low AND @high` |
+| `.isNull()` | — | `IS NULL` |
+| `.isNotNull()` | — | `IS NOT NULL` |
+| `.isBefore(dt)` | `DateTime` | `< dt` |
+| `.isAfter(dt)` | `DateTime` | `> dt` |
+| `.isOn(dt)` | `DateTime` | `= dt` |
+| `.raw(sql)` | `String` | raw SQL condition |
+
+**Note**: `.isEqualTo()` accepts `num` only. For string equality, use `.matches()` with `caseSensitive: true`.
+
+**Note**: `.isIn()` and `.isNotIn()` throw `StanzaException` if passed an empty list.
+
+Brackets can group conditions:
+
+```dart
+q.where(table.name).startsWith('t')
+ .and(table.legs, openBracket: true).isLessThan(4)
+ .or(table.legs, closeBracket: true).isGreaterThan(6);
+// WHERE name LIKE 't%' AND (legs < 4 OR legs > 6)
+```
+
+### JOINs
+
+Stanza supports INNER, LEFT, RIGHT, and CROSS joins.
+
+**Using generated helpers** (from `@BelongsTo`):
+
+```dart
+var q = SelectQuery(Animal.$table)..selectStar();
+Animal.$table.innerJoinOwner(q);  // adds aliased fields + JOIN clause
+q.where(Owner.$table.name).matches('alice');
+
+var result = await stanza.execute<Animal>(q);
 for (var r in result.all) {
-  print(r.value.name);
-  print(r.aggregate['name_count']);
+  var animal = r.value;
+  var owner = Animal.$table.ownerFromRow(r.aggregate);
+  print('${animal?.name} belongs to ${owner?.name}');
 }
 ```
 
-This will print out the first name and the count of the first name on separate lines for each result in the list.
+The generated `innerJoinOwner()` / `leftJoinOwner()` methods automatically add aliased SELECT fields and the JOIN clause. The `ownerFromRow()` method extracts a typed entity from the aliased columns, returning `null` for LEFT JOIN misses.
 
-The aggregate doesn't need to be renamed and would otherwise be called 'count' by default in this case.
-
-### execute a query in a transaction
-Queries can be executed in a transaction with a simple and similar syntax.
+**Manual joins:**
 
 ```dart
-var insertQuery = InsertQuery(table)
-  ..insertEntity<Animal>(animal);
-var selectQuery = SelectQuery(table)
-  ..selectFields([table.id.max()])
-  ..limit(1);
-var conn = await Stanza.connection();
-var result = await conn.executeTransaction<Animal>((tx) async {
-  await tx.execute(insertQuery);
-  return tx.execute(selectQuery);
+var q = SelectQuery(Animal.$table)
+  ..selectStar()
+  ..innerJoin(Owner.$table).on(Animal.$table.ownerId, Owner.$table.id);
+```
+
+Available join methods: `innerJoin()`, `leftJoin()`, `rightJoin()`, `crossJoin()`.
+
+### RETURNING clause
+
+INSERT, UPDATE, and DELETE queries can return affected rows without a follow-up SELECT:
+
+```dart
+// Return all columns:
+var q = InsertQuery(table)
+  ..insertEntity<Animal>(animal)
+  ..returningStar();
+
+// Return specific columns:
+var q = DeleteQuery(table)
+  ..where(table.id).isEqualTo(1)
+  ..returning([table.id, table.name]);
+```
+
+### aggregates
+
+Fields can be wrapped in aggregate functions for SELECT queries:
+
+```dart
+var q = SelectQuery(table)
+  ..selectFields([
+    table.color,
+    table.id.count().rename('animal_count'),
+  ])
+  ..groupBy([table.color]);
+
+var result = await stanza.execute<Animal>(q);
+for (var r in result.all) {
+  print('${r.aggregate['animal_count']} ${r.value?.color} animals');
+}
+```
+
+Available aggregates: `.count()`, `.sum()`, `.avg()`, `.min()`, `.max()`.
+
+Use `.rename('alias')` to give the aggregate a custom name in the result map.
+
+#### DISTINCT
+
+```dart
+var q = SelectQuery(table)
+  ..distinct()
+  ..selectFields([table.color]);
+```
+
+#### HAVING
+
+Use `having()` to filter groups by aggregate values (goes after `groupBy()`):
+
+```dart
+var q = SelectQuery(table)
+  ..selectFields([
+    table.color,
+    table.id.count().rename('animal_count'),
+  ])
+  ..groupBy([table.color])
+  ..having(table.id..count()).isGreaterThan(2);
+```
+
+Chain with `andHaving()` / `orHaving()` for multiple conditions. `having()` accepts the same comparison methods as `where()` (`.isEqualTo()`, `.isGreaterThan()`, etc.).
+
+### transactions
+
+```dart
+var result = await stanza.runTransaction<Animal>((session) async {
+  await session.execute(insertQuery);
+  return session.execute<Animal>(selectQuery);
 });
-print(result.first.id);
 ```
 
-This will yield the last entered id since it is executed inside the transaction with the insert query.
+If any statement throws, the transaction is automatically rolled back.
 
-### keep a connection open
-By default the database connection is closed after a query is executed but it can be kept open to execute multiple queries using the same connection.
+For multiple queries on the same connection without a transaction, use `stanza.run()`:
 
 ```dart
-var result = await connection.execute<Type>(query, autoClose: false);
+await stanza.run((session) async {
+  await session.execute(insertQuery);
+  return session.execute<Animal>(selectQuery);
+});
 ```
 
-Here 'connection' stays alive and it is the user's responsibility to close it. Connections can also be kept alive when used in a transaction.
+### streaming results
+
+For large result sets, `stream<T>()` uses postgres v3 prepared statements to deliver rows one at a time without buffering the entire result in memory:
+
+```dart
+await for (final row in stanza.stream<Animal>(selectQuery)) {
+  print(row.value?.name);       // typed entity
+  print(row.aggregate);          // raw column map
+}
+```
+
+Each element is a `Result<T>` — the same type returned inside `QueryResult.all`. Streaming is also available on `StanzaSession` inside `run()` and `runTransaction()` blocks:
+
+```dart
+await stanza.run((session) async {
+  await for (final row in session.stream<Animal>(selectQuery)) {
+    process(row);
+  }
+});
+```
+
+### raw SQL
+
+For DDL, migrations, or anything the query builder doesn't cover:
+
+```dart
+await stanza.rawExecute('CREATE TABLE IF NOT EXISTS animals (id SERIAL PRIMARY KEY, name TEXT)');
+
+await stanza.rawExecute(
+  'INSERT INTO animals (name) VALUES (@name)',
+  parameters: {'name': 'Tiger'},
+);
+```
+
+`rawExecute` is also available on `StanzaSession` inside `run()` and `runTransaction()` blocks.
 
 ### print a query
-During development it may be helpful to see the SQL statement being generated. A query will 'pretty print' to the console including standard SQL formatting with line breaks and capitalization with simply `print(queryName)`.
 
-### fork a query
-In cases where a query needs to use changing variables it can be partially built and then 'forked' to be completed and used later. As a simple example:
+Any query can be printed with standard SQL formatting:
 
 ```dart
-var colors = ['black', 'brown', 'green'];
-var query = SelectQuery(table)
-  ..where(table.legs).isGreaterThan(3);
-var connection = await stanza.connection();
-for (var color in colors) {
-  var completeQuery = query.fork()
-    ..and(table.color).matches(color);
-  var result = await connection.execute<Animal>(completeQuery, autoClose: false);
-  print(result.all.length);
-}
-await connection.close();
+print(query.statement(pretty: true));
 ```
-This will print the number of results for each color of animal after executing three separate queries, in this case reusing the database connection and closing it manually after.
 
+This outputs the SQL with line breaks between clauses for readability.
 
-<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+### fork a query
+
+Queries can be partially built and then forked to create independent copies:
+
+```dart
+var base = SelectQuery(table)
+  ..selectStar()
+  ..where(table.legs).isGreaterThan(2);
+
+for (var color in ['orange', 'brown', 'white']) {
+  var q = base.fork()
+    ..and(table.color).matches(color);
+  var result = await stanza.execute<Animal>(q);
+  print('$color: ${result.length} animals');
+}
+```
+
+The forked query is a deep copy — modifying it does not affect the original.
+
+## schema management
+
+Stanza includes optional schema management that diffs your Dart models against a live database and generates forward-only SQL migration files. Import it separately:
+
+```dart
+import 'package:stanza/schema.dart';
+```
+
+### schema annotations
+
+Schema management builds on the same annotations used for query building. Add `@PrimaryKey` and schema-related `@StanzaField` parameters to describe your database structure:
+
+```dart
+@StanzaEntity(snakeCase: true)
+class Owner {
+  @PrimaryKey()
+  @StanzaField(readOnly: true)
+  late int id;
+  @StanzaField(unique: true)
+  late String name;
+
+  Owner();
+  static final _$OwnerTable $table = _$OwnerTable();
+}
+
+@StanzaEntity(name: 'mammal', snakeCase: true)
+class Animal {
+  @PrimaryKey()
+  @StanzaField(readOnly: true)
+  late int id;
+  late String name;
+  @StanzaField(name: 'number_of_legs')
+  late int legs;
+  late String color;
+  @StanzaField(defaultValue: 'NOW()')
+  late DateTime createdAt;
+
+  @BelongsTo(Owner, onDelete: 'CASCADE')
+  late int ownerId;
+
+  Animal();
+  static final _$AnimalTable $table = _$AnimalTable();
+}
+```
+
+After running `dart run build_runner build`, each generated table class includes a `$schema` getter that encodes the full table structure — columns, types, constraints — as data.
+
+**Type inference** (when `@StanzaField(type:)` is not set):
+
+| Dart type | PostgreSQL type |
+|---|---|
+| `int` | `integer` |
+| `String` | `text` |
+| `bool` | `boolean` |
+| `double` | `double precision` |
+| `DateTime` | `timestamptz` |
+| `@PrimaryKey() int` | `serial` |
+
+Nullability is inferred from Dart's `?` suffix. Use `@StanzaField(nullable: false)` to override.
+
+### migration CLI
+
+Create a `bin/migrate.dart` script in your project:
+
+```dart
+import 'dart:io';
+import 'package:stanza/schema.dart';
+import 'package:my_app/models.dart';
+
+void main(List<String> args) => StanzaCli.run(
+  args,
+  databaseUrl: Platform.environment['DATABASE_URL']!,
+  tables: [Owner.$table, Animal.$table],
+);
+```
+
+Then use it:
+
+```bash
+# See what's applied vs pending
+dart run bin/migrate.dart status
+
+# Show schema differences (code vs database)
+dart run bin/migrate.dart diff
+
+# Generate a timestamped .sql migration file
+dart run bin/migrate.dart generate
+
+# Review the generated file, then apply
+dart run bin/migrate.dart apply
+
+# Preview without executing
+dart run bin/migrate.dart apply --dry-run
+```
+
+### how it works
+
+1. **Diff**: `SchemaManager` reads `$schema` from each table, queries `information_schema` for the actual database state, and computes the difference.
+
+2. **Generate**: The diff is written to a timestamped SQL file (e.g., `migrations/20260219_143022.sql`) wrapped in `BEGIN`/`COMMIT`. Dropped columns are commented out with `-- SAFETY:` so you must consciously uncomment them.
+
+3. **Apply**: Pending migration files are applied in filename order. Each migration runs in a transaction and is recorded in a `_stanza_migrations` tracking table with a SHA-256 checksum. Modified applied migrations are rejected.
+
+4. **Forward-only**: There are no rollback/down migrations. If a migration goes wrong, write a new forward migration to fix it.
+
+You can also use the API directly instead of the CLI:
+
+```dart
+final manager = SchemaManager(
+  stanza,
+  tables: [Owner.$table, Animal.$table],
+  migrationsDir: 'migrations',
+);
+
+final ops = await manager.diff();       // List<SchemaDiffOp>
+final path = await manager.generate();  // writes .sql file
+final applied = await manager.apply();  // applies pending files
+final statuses = await manager.status(); // applied/pending list
+```

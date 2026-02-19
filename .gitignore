@@ -26,3 +26,8 @@ pubspec.lock
 **/build/
 .packages
 **/.dart_tool/
+
+# Environment files (credentials) #
+####################################
+.env
+**/.env
