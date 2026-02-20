@@ -1,27 +1,23 @@
 import 'dart:io';
 
-import '../stanza.dart';
-import '../table.dart';
-import 'db_introspector.dart';
-import 'migration_file.dart';
-import 'migration_runner.dart';
-import 'schema_constraint.dart';
-import 'schema_diff.dart';
-import 'schema_table.dart';
+import 'package:stanza/stanza.dart';
+
+import 'pg_introspector.dart';
+import 'pg_migration_runner.dart';
 
 /// Orchestrates schema management: diff, generate, and apply migrations.
 ///
-/// Takes a [Stanza] connection and a list of generated [TableDescriptor]
+/// Takes a [DatabaseAdapter] connection and a list of generated [TableDescriptor]
 /// instances that provide `$schema` metadata.
-class SchemaManager {
-  final Stanza _db;
+class PgSchemaManager {
+  final DatabaseAdapter _db;
   final List<TableDescriptor> _tables;
   final String _migrationsDir;
 
-  late final _introspector = DbIntrospector(_db);
-  late final _runner = MigrationRunner(_db, migrationsDir: _migrationsDir);
+  late final _introspector = PgIntrospector(_db);
+  late final _runner = PgMigrationRunner(_db, migrationsDir: _migrationsDir);
 
-  SchemaManager(
+  PgSchemaManager(
     this._db, {
     required List<TableDescriptor> tables,
     String migrationsDir = 'migrations',

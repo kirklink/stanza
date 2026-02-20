@@ -366,7 +366,8 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
       final pgType = _pgTypeForField(field);
       final nullable = field.isNullable || (field.isPrimaryKey && field.autoIncrement);
       buf.write("      SchemaColumn(name: '${field.columnName}', ");
-      buf.write("type: ColumnType('$pgType')");
+      buf.write("type: ColumnType('$pgType'), ");
+      buf.write("dartTypeName: '${field.dartType}'");
       if (!nullable) buf.write(', nullable: false');
       if (field.isPrimaryKey) buf.write(', isPrimaryKey: true');
       if (field.autoIncrement) buf.write(', isSerial: true');

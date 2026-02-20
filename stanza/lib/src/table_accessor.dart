@@ -1,15 +1,15 @@
 import 'column.dart';
+import 'database.dart';
 import 'delete_query.dart';
 import 'insert_query.dart';
 import 'select_query.dart';
-import 'stanza.dart';
 import 'table.dart';
 import 'update_query.dart';
 
 /// Provides typed CRUD operations for a specific entity table.
 ///
 /// Created by the generated `$AppDatabase` class. Binds a [TableDescriptor]
-/// to a [Stanza] connection, enabling fluent query building and execution.
+/// to a [DatabaseAdapter] connection, enabling fluent query building and execution.
 ///
 /// ```dart
 /// // db.users is a TableAccessor<User, $UserTable>
@@ -23,7 +23,7 @@ class TableAccessor<T, D extends TableDescriptor<T>> {
   /// The table descriptor providing typed columns and row mapping.
   final D descriptor;
 
-  final Stanza _db;
+  final DatabaseAdapter _db;
 
   /// Creates an accessor bound to a table descriptor and database connection.
   TableAccessor(this.descriptor, this._db);
@@ -96,11 +96,11 @@ class TableAccessor<T, D extends TableDescriptor<T>> {
   }
 }
 
-/// Extension to execute queries directly against a [Stanza] connection.
+/// Extension to execute queries directly against a [DatabaseAdapter].
 extension ExecutableSelectQuery<T, D extends TableDescriptor<T>>
     on SelectQuery<T, D> {
   /// Executes this SELECT query and returns mapped entities.
-  Future<List<T>> run(Stanza db) async {
+  Future<List<T>> run(DatabaseAdapter db) async {
     final result = await db.execute(this);
     return result.entities;
   }
@@ -110,13 +110,13 @@ extension ExecutableSelectQuery<T, D extends TableDescriptor<T>>
 extension ExecutableUpdateQuery<T, D extends TableDescriptor<T>>
     on UpdateQuery<T, D> {
   /// Executes this UPDATE query and returns the affected row count.
-  Future<int> run(Stanza db) async {
+  Future<int> run(DatabaseAdapter db) async {
     final result = await db.execute(this);
     return result.affectedRows;
   }
 
   /// Executes this UPDATE with RETURNING and returns the updated entities.
-  Future<List<T>> runReturning(Stanza db) async {
+  Future<List<T>> runReturning(DatabaseAdapter db) async {
     returning();
     final result = await db.execute(this);
     return result.entities;
@@ -127,13 +127,13 @@ extension ExecutableUpdateQuery<T, D extends TableDescriptor<T>>
 extension ExecutableDeleteQuery<T, D extends TableDescriptor<T>>
     on DeleteQuery<T, D> {
   /// Executes this DELETE query and returns the affected row count.
-  Future<int> run(Stanza db) async {
+  Future<int> run(DatabaseAdapter db) async {
     final result = await db.execute(this);
     return result.affectedRows;
   }
 
   /// Executes this DELETE with RETURNING and returns the deleted entities.
-  Future<List<T>> runReturning(Stanza db) async {
+  Future<List<T>> runReturning(DatabaseAdapter db) async {
     returning();
     final result = await db.execute(this);
     return result.entities;

@@ -1,39 +1,39 @@
 import 'dart:io';
 
-import '../stanza.dart';
-import '../table.dart';
-import 'schema_diff.dart';
-import 'schema_manager.dart';
+import 'package:stanza/stanza.dart';
+
+import '../postgres_database.dart';
+import 'pg_schema_manager.dart';
 
 /// CLI helper for schema management commands.
 ///
 /// Usage in a project's `bin/migrate.dart`:
 /// ```dart
-/// void main(List<String> args) => StanzaCli.run(
+/// void main(List<String> args) => PgCli.run(
 ///   args,
 ///   databaseUrl: Platform.environment['DATABASE_URL']!,
 ///   tables: [userTable, postTable],
 /// );
 /// ```
-class StanzaCli {
+class PgCli {
   /// Runs the CLI with the given arguments.
   ///
-  /// Provide either [databaseUrl] or [stanza], not both.
+  /// Provide either [databaseUrl] or [db], not both.
   static Future<void> run(
     List<String> args, {
     String? databaseUrl,
-    Stanza? stanza,
+    DatabaseAdapter? db,
     required List<TableDescriptor> tables,
     String migrationsDir = 'migrations',
   }) async {
     assert(
-      (databaseUrl != null) ^ (stanza != null),
-      'Provide either databaseUrl or stanza, not both',
+      (databaseUrl != null) ^ (db != null),
+      'Provide either databaseUrl or db, not both',
     );
 
-    final db = stanza ?? Stanza.url(databaseUrl!);
-    final manager = SchemaManager(
-      db,
+    final database = db ?? Stanza.url(databaseUrl!);
+    final manager = PgSchemaManager(
+      database,
       tables: tables,
       migrationsDir: migrationsDir,
     );
@@ -59,11 +59,11 @@ class StanzaCli {
           exit(1);
       }
     } finally {
-      if (stanza == null) await db.close();
+      if (db == null) await database.close();
     }
   }
 
-  static Future<void> _status(SchemaManager manager) async {
+  static Future<void> _status(PgSchemaManager manager) async {
     final statuses = await manager.status();
     if (statuses.isEmpty) {
       // ignore: avoid_print
@@ -78,7 +78,7 @@ class StanzaCli {
     }
   }
 
-  static Future<void> _diff(SchemaManager manager) async {
+  static Future<void> _diff(PgSchemaManager manager) async {
     final ops = await manager.diff();
     if (ops.isEmpty) {
       // ignore: avoid_print
@@ -93,7 +93,7 @@ class StanzaCli {
     }
   }
 
-  static Future<void> _generate(SchemaManager manager) async {
+  static Future<void> _generate(PgSchemaManager manager) async {
     final path = await manager.generate();
     if (path == null) {
       // ignore: avoid_print
@@ -105,7 +105,7 @@ class StanzaCli {
   }
 
   static Future<void> _apply(
-    SchemaManager manager, {
+    PgSchemaManager manager, {
     required bool dryRun,
   }) async {
     final applied = await manager.apply(dryRun: dryRun);
@@ -124,7 +124,7 @@ class StanzaCli {
   static void _help() {
     // ignore: avoid_print
     print('''
-Stanza Migration CLI
+Stanza PostgreSQL Migration CLI
 
 Commands:
   status      Show applied and pending migrations

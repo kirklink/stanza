@@ -7,8 +7,14 @@ class SchemaColumn {
   /// The column name in the database.
   final String name;
 
-  /// The PostgreSQL column type.
+  /// The SQL column type for the current database dialect.
   final ColumnType type;
+
+  /// The original Dart type name (e.g. `'int'`, `'String'`, `'DateTime'`).
+  ///
+  /// Stored so database adapters can map Dart types to their native SQL types
+  /// without needing to reverse-engineer from a specific dialect's type names.
+  final String? dartTypeName;
 
   /// Whether the column allows NULL values.
   final bool nullable;
@@ -19,7 +25,7 @@ class SchemaColumn {
   /// Whether this column is part of the primary key.
   final bool isPrimaryKey;
 
-  /// Whether this column uses SERIAL (auto-increment).
+  /// Whether this column uses SERIAL / auto-increment.
   final bool isSerial;
 
   /// Whether this column has a UNIQUE constraint.
@@ -28,6 +34,7 @@ class SchemaColumn {
   const SchemaColumn({
     required this.name,
     required this.type,
+    this.dartTypeName,
     this.nullable = true,
     this.defaultValue,
     this.isPrimaryKey = false,

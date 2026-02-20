@@ -36,18 +36,24 @@ class $UserTable extends TableDescriptor<User> {
           SchemaColumn(
               name: 'id',
               type: ColumnType('serial'),
+              dartTypeName: 'int',
               isPrimaryKey: true,
               isSerial: true),
           SchemaColumn(
               name: 'email',
               type: ColumnType('varchar(100)'),
+              dartTypeName: 'String',
               nullable: false,
               isUnique: true),
           SchemaColumn(
-              name: 'name', type: ColumnType('varchar(50)'), nullable: false),
+              name: 'name',
+              type: ColumnType('varchar(50)'),
+              dartTypeName: 'String',
+              nullable: false),
           SchemaColumn(
               name: 'created_at',
               type: ColumnType('timestamptz'),
+              dartTypeName: 'DateTime',
               nullable: false,
               defaultValue: 'now()'),
         ],
@@ -147,16 +153,28 @@ class $PostTable extends TableDescriptor<Post> {
           SchemaColumn(
               name: 'id',
               type: ColumnType('serial'),
+              dartTypeName: 'int',
               isPrimaryKey: true,
               isSerial: true),
           SchemaColumn(
-              name: 'title', type: ColumnType('text'), nullable: false),
-          SchemaColumn(name: 'body', type: ColumnType('text'), nullable: false),
+              name: 'title',
+              type: ColumnType('text'),
+              dartTypeName: 'String',
+              nullable: false),
           SchemaColumn(
-              name: 'author_id', type: ColumnType('integer'), nullable: false),
+              name: 'body',
+              type: ColumnType('text'),
+              dartTypeName: 'String',
+              nullable: false),
+          SchemaColumn(
+              name: 'author_id',
+              type: ColumnType('integer'),
+              dartTypeName: 'int',
+              nullable: false),
           SchemaColumn(
               name: 'created_at',
               type: ColumnType('timestamptz'),
+              dartTypeName: 'DateTime',
               nullable: false,
               defaultValue: 'now()'),
         ],

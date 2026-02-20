@@ -1,14 +1,10 @@
-import '../stanza.dart';
-import 'column_type.dart';
-import 'schema_column.dart';
-import 'schema_constraint.dart';
-import 'schema_table.dart';
+import 'package:stanza/stanza.dart';
 
 /// Reads the actual database schema from PostgreSQL `information_schema`.
-class DbIntrospector {
-  final Stanza _db;
+class PgIntrospector {
+  final DatabaseAdapter _db;
 
-  DbIntrospector(this._db);
+  PgIntrospector(this._db);
 
   /// Introspects the given table names and returns their schemas.
   ///

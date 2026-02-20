@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-
-import '../exception.dart';
-import '../stanza.dart';
+import 'package:stanza/stanza.dart';
 
 /// Status of a single migration file.
 class MigrationStatus {
@@ -28,11 +26,11 @@ class MigrationStatus {
 ///
 /// Migration state is tracked in the `_stanza_migrations` table, which
 /// is created automatically. Checksums prevent tampering with applied migrations.
-class MigrationRunner {
-  final Stanza _db;
+class PgMigrationRunner {
+  final DatabaseAdapter _db;
   final String _migrationsDir;
 
-  MigrationRunner(this._db, {required String migrationsDir})
+  PgMigrationRunner(this._db, {required String migrationsDir})
       : _migrationsDir = migrationsDir;
 
   /// Creates the `_stanza_migrations` tracking table if it doesn't exist.

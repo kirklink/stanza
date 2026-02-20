@@ -1,24 +1,17 @@
 import 'package:postgres/postgres.dart' as pg;
-
-import 'exception.dart';
-import 'parameter.dart';
-import 'query.dart';
-import 'result.dart';
-import 'table.dart';
-
-/// Callback type for session-based execution (transactions, multi-query).
-typedef SessionBlock<T> = Future<T> Function(StanzaSession session);
+import 'package:stanza/stanza.dart';
 
 /// PostgreSQL connection pool manager.
 ///
-/// Create via [Stanza.url] or [Stanza.pool], then use [execute], [stream],
-/// [run], or [transaction] to interact with the database.
+/// Implements the abstract [DatabaseAdapter] interface using the `package:postgres`
+/// driver. Create via [Stanza.url] or [Stanza.pool], then use [execute],
+/// [stream], [run], or [transaction] to interact with the database.
 ///
 /// ```dart
 /// final db = Stanza.url('postgresql://user:pass@host/dbname');
 /// final result = await db.execute(selectQuery);
 /// ```
-class Stanza {
+class Stanza implements DatabaseAdapter {
   final pg.Pool _pool;
 
   /// Instance cache keyed by connection identifier.
@@ -70,11 +63,15 @@ class Stanza {
   /// Creates a Stanza instance from an existing postgres Pool.
   factory Stanza.pool(pg.Pool pool) => Stanza._(pool);
 
+  @override
+  ParameterCollector createParameterCollector() => ParameterCollector();
+
   /// Executes a query and returns mapped results.
+  @override
   Future<QueryResult<T>> execute<T, D extends TableDescriptor<T>>(
     Query<T, D> query,
   ) async {
-    final params = ParameterCollector();
+    final params = createParameterCollector();
     final sql = query.toSql(params);
 
     try {
@@ -95,6 +92,7 @@ class Stanza {
   }
 
   /// Executes raw SQL with optional named parameters.
+  @override
   Future<QueryResult<Never>> rawExecute(
     String sql, {
     Map<String, dynamic>? parameters,
@@ -116,7 +114,8 @@ class Stanza {
   }
 
   /// Runs multiple queries on a single connection (no transaction).
-  Future<T> run<T>(SessionBlock<T> block) async {
+  @override
+  Future<T> run<T>(AdapterSessionBlock<T> block) async {
     return _pool.run((pgSession) async {
       final session = StanzaSession._(pgSession);
       return block(session);
@@ -124,7 +123,8 @@ class Stanza {
   }
 
   /// Runs queries in a transaction. Rolls back on error.
-  Future<T> transaction<T>(SessionBlock<T> block) async {
+  @override
+  Future<T> transaction<T>(AdapterSessionBlock<T> block) async {
     return _pool.runTx((pgSession) async {
       final session = StanzaSession._(pgSession);
       return block(session);
@@ -135,7 +135,7 @@ class Stanza {
   Stream<T> stream<T, D extends TableDescriptor<T>>(
     Query<T, D> query,
   ) async* {
-    final params = ParameterCollector();
+    final params = createParameterCollector();
     final sql = query.toSql(params);
 
     await for (final row in _pool.execute(
@@ -154,6 +154,7 @@ class Stanza {
   ///   mapper: (row) => (name: row['name'] as String, count: row['count'] as int),
   /// );
   /// ```
+  @override
   Future<List<R>> rawQuery<R>(
     String sql, {
     Map<String, dynamic>? parameters,
@@ -164,6 +165,7 @@ class Stanza {
   }
 
   /// Closes the connection pool.
+  @override
   Future<void> close() async {
     await _pool.close();
     _instances.removeWhere((_, v) => v == this);
@@ -180,14 +182,16 @@ class Stanza {
 
 /// A single database session for use in [Stanza.run] and [Stanza.transaction].
 ///
-/// Provides the same query execution API as [Stanza] but operates on a
-/// single connection, ensuring sequential execution within the session.
-class StanzaSession {
+/// Implements [SessionAdapter] and provides the same query execution API
+/// as [Stanza] but operates on a single connection, ensuring sequential
+/// execution within the session.
+class StanzaSession implements SessionAdapter {
   final pg.Session _session;
 
   StanzaSession._(this._session);
 
   /// Executes a query and returns mapped results.
+  @override
   Future<QueryResult<T>> execute<T, D extends TableDescriptor<T>>(
     Query<T, D> query,
   ) async {
@@ -212,6 +216,7 @@ class StanzaSession {
   }
 
   /// Executes raw SQL with optional named parameters.
+  @override
   Future<QueryResult<Never>> rawExecute(
     String sql, {
     Map<String, dynamic>? parameters,
@@ -233,6 +238,7 @@ class StanzaSession {
   }
 
   /// Executes raw SQL and maps results using a custom function.
+  @override
   Future<List<R>> rawQuery<R>(
     String sql, {
     Map<String, dynamic>? parameters,

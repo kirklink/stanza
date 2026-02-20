@@ -1,24 +1,26 @@
-name: stanza
+name: stanza_postgres
 homepage: "https://github.com/kirklink/stanza"
 repository: "https://github.com/kirklink/stanza"
 issue_tracker: "https://github.com/kirklink/stanza/issues"
 description: >-
-  AI-first database-agnostic ORM for Dart with code generation.
-  Type-safe query builder, typed columns, immutable entities,
-  and schema management abstractions.
+  PostgreSQL adapter for the Stanza ORM.
+  Provides connection pooling, query execution, schema introspection,
+  and migration management for PostgreSQL databases.
 version: 2.0.0-dev.1
+publish_to: none
 topics:
   - postgresql
-  - query-builder
   - database
   - sql
-  - codegen
   - orm
 environment:
   sdk: '>=3.3.0 <4.0.0'
 dependencies:
-  recase: ^4.1.0
+  stanza:
+    path: ../stanza
+  postgres: ^3.4.0
+  crypto: ^3.0.0
+  path: ^1.9.0
 dev_dependencies:
-  build_runner: ^2.4.0
   lints: ^4.0.0
   test: ^1.24.0
