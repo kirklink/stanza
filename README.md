@@ -1,6 +1,6 @@
 # Stanza
 
-Type-safe, AI-first PostgreSQL ORM for Dart. One canonical way to do everything — optimized for LLM code generation.
+Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimized for LLM code generation. Database-agnostic core with pluggable adapters.
 
 ## Design Philosophy
 
@@ -10,6 +10,7 @@ Type-safe, AI-first PostgreSQL ORM for Dart. One canonical way to do everything 
 - **Generated companions.** `UserInsert` (excludes auto-increment PK), `UserUpdate` (all fields optional), `copyWith` — each operation gets purpose-built types.
 - **Safe by default.** UPDATE/DELETE without `.where()` throw. All values parameterized. No SQL injection.
 - **One right way.** Every operation has one canonical API. LLMs don't guess between three equivalent patterns.
+- **Database-agnostic.** Core query builder works with any SQL database. Adapters handle connection management and dialect differences.
 
 ## Features
 
@@ -23,9 +24,18 @@ Type-safe, AI-first PostgreSQL ORM for Dart. One canonical way to do everything 
 - ON CONFLICT: upsert with DO UPDATE or DO NOTHING
 - Code generation: `@Entity` + `build_runner` generates table descriptors, companions, schema metadata
 - Schema management: diff code vs database, generate forward-only SQL migrations, apply with checksums
-- Connection pooling: wraps `postgres` v3 with instance caching
+- Database adapters: pluggable architecture — PostgreSQL adapter included, SQLite planned
+- Connection pooling: wraps `postgres` v3 with instance caching (via `stanza_postgres`)
 - Streaming: row-by-row results without buffering
 - Transactions: automatic rollback on error
+
+## Packages
+
+| Package | Purpose |
+|---------|---------|
+| `stanza` | Core ORM — annotations, columns, expressions, query builder, schema types |
+| `stanza_postgres` | PostgreSQL adapter — connection pool, introspection, migrations, CLI |
+| `stanza_builder` | Code generation — `@Entity` → table descriptors, companions, schema |
 
 ## Quick Start
 
@@ -60,6 +70,9 @@ dart run build_runner build --delete-conflicting-outputs
 ```
 
 ```dart
+import 'package:stanza_postgres/stanza_postgres.dart';
+
+final db = Stanza.url('postgresql://user:pass@host/dbname');
 final users = $UserTable();
 
 // SELECT
@@ -67,6 +80,7 @@ final query = SelectQuery(users)
     .where((t) => t.email.like('%@example.com'))
     .orderBy((t) => t.createdAt.desc())
     .limit(10);
+final result = await db.execute(query);
 
 // INSERT
 final insert = InsertQuery(users)
@@ -86,7 +100,12 @@ dependencies:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza
-      ref: v2
+      ref: dev
+  stanza_postgres:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza_postgres
+      ref: dev
 
 dev_dependencies:
   build_runner: ^2.4.0
@@ -94,7 +113,7 @@ dev_dependencies:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza_builder
-      ref: v2
+      ref: dev
 ```
 
 ## Documentation
@@ -104,7 +123,7 @@ dev_dependencies:
 
 ## Status
 
-v2 rewrite complete. All phases implemented:
+v2 rewrite complete with multi-database adapter support. All phases implemented:
 
 | Phase | Description | Tests |
 |-------|-------------|-------|
@@ -112,10 +131,11 @@ v2 rewrite complete. All phases implemented:
 | 1 | Foundation (annotations, columns, expressions) | 34 |
 | 2 | Query builder (SELECT, INSERT, UPDATE, DELETE, JOIN) | 42 |
 | 3 | Code generator (entity_generator, type_mapping) | 20 |
-| 4 | Connection & execution (Stanza, StanzaSession, TableAccessor) | - |
+| 4 | Connection & execution (DatabaseAdapter, TableAccessor) | - |
 | 5 | Schema & migrations (diff, introspect, migrate, CLI) | 57 |
 | 6a | Aggregates + GROUP BY + HAVING | 30 |
 | 6b | Full-text search + trigram similarity | 17 |
 | 6c | Subqueries + raw SQL | 5 |
+| 7 | Multi-database adapter support + package split | - |
 
 **229 tests total**, zero analysis issues.

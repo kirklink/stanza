@@ -1,6 +1,6 @@
 # Stanza — Contributor Guide
 
-Type-safe, AI-first PostgreSQL ORM for Dart. Two packages: `stanza` (runtime) and `stanza_builder` (code generation).
+Type-safe, AI-first database-agnostic ORM for Dart. Three packages: `stanza` (core runtime), `stanza_postgres` (PostgreSQL adapter), and `stanza_builder` (code generation).
 
 - For consumer-facing API reference, see [docs/guide.md](docs/guide.md)
 
@@ -12,7 +12,7 @@ dart test --reporter github 2>/dev/null    # full pass/fail output
 dart test --reporter github 2>/dev/null | tail -1  # summary only
 
 # Analyze
-dart analyze                               # from stanza/stanza/ or stanza/stanza_builder/
+dart analyze                               # from stanza/stanza/, stanza_postgres/, or stanza_builder/
 
 # Regenerate example code (from stanza/stanza/example/)
 dart run build_runner build --delete-conflicting-outputs
@@ -23,11 +23,11 @@ dart test --reporter github 2>/dev/null
 
 ## Branch
 
-- `v2` — Active development (clean break from v1, no backward compatibility)
+- `dev` — Active development
 
 ## Package Structure
 
-### stanza/stanza/ (runtime)
+### stanza/stanza/ (core runtime — database-agnostic)
 
 | File | Purpose |
 |------|---------|
@@ -36,30 +36,37 @@ dart test --reporter github 2>/dev/null
 | `lib/annotations.dart` | Annotation-only barrel — for entity files |
 | `lib/src/annotations.dart` | `Entity`, `Field`, `PrimaryKey`, `References`, `Database` |
 | `lib/src/column.dart` | `Column<T>` hierarchy: Int, String, Bool, Double, DateTime columns |
+| `lib/src/database.dart` | `DatabaseAdapter`, `SessionAdapter` abstract interfaces, `AdapterSessionBlock` typedef |
 | `lib/src/expression.dart` | Sealed `Expression` tree (18 subtypes) + `AggregateExpression`, `CountAll` |
 | `lib/src/fts.dart` | `FtsConfig`, `FtsQueryType` enums |
 | `lib/src/order.dart` | `OrderExpression` (column + ASC/DESC) |
-| `lib/src/parameter.dart` | `ParameterCollector` — assigns `@p0`, `@p1`, collects values |
+| `lib/src/parameter.dart` | `ParameterCollector` — assigns parameterized placeholders, configurable prefix (`@` for Postgres, `:` for SQLite) |
 | `lib/src/query.dart` | Abstract `Query<T, D>` base with `toSql()` and `build()` |
 | `lib/src/select_query.dart` | `SelectQuery` — WHERE, ORDER BY, JOIN, GROUP BY, HAVING, FTS projections |
 | `lib/src/insert_query.dart` | `InsertQuery` — values, valuesList, returning, onConflict |
 | `lib/src/update_query.dart` | `UpdateQuery` — SET from map, WHERE, returning, safety check |
 | `lib/src/delete_query.dart` | `DeleteQuery` — WHERE, returning, safety check |
-| `lib/src/stanza.dart` | `Stanza` (pool manager), `StanzaSession` (single connection) |
 | `lib/src/table.dart` | Abstract `TableDescriptor<T>` — base for generated table classes |
-| `lib/src/table_accessor.dart` | `TableAccessor` — typed CRUD, plus Executable extensions |
+| `lib/src/table_accessor.dart` | `TableAccessor` — typed CRUD, plus Executable extensions (accepts `DatabaseAdapter`) |
 | `lib/src/result.dart` | `QueryResult<T>` — rows, entities, affectedRows |
 | `lib/src/exception.dart` | `StanzaException` |
-| `lib/src/schema/column_type.dart` | Dart ↔ Postgres type mapping, equivalence (serial ≡ integer) |
-| `lib/src/schema/schema_column.dart` | `SchemaColumn` — name, type, nullable, default, PK, serial, unique |
+| `lib/src/schema/column_type.dart` | Dart ↔ SQL type mapping, equivalence (serial ≡ integer) |
+| `lib/src/schema/schema_column.dart` | `SchemaColumn` — name, type, dartTypeName, nullable, default, PK, serial, unique |
 | `lib/src/schema/schema_constraint.dart` | `ConstraintKind` enum + `SchemaConstraint` |
 | `lib/src/schema/schema_table.dart` | `SchemaTable` — columns + constraints + naming helpers |
 | `lib/src/schema/schema_diff.dart` | Sealed `SchemaDiffOp` (8 subtypes) + `SchemaDiff.diff()` |
-| `lib/src/schema/db_introspector.dart` | `DbIntrospector` — reads `information_schema` |
 | `lib/src/schema/migration_file.dart` | `MigrationFileWriter` — generates timestamped .sql files |
-| `lib/src/schema/migration_runner.dart` | `MigrationRunner` — applies migrations, SHA-256 checksums |
-| `lib/src/schema/schema_manager.dart` | `SchemaManager` — orchestrates diff → generate → apply |
-| `lib/src/schema/stanza_cli.dart` | `StanzaCli` — CLI: status, diff, generate, apply |
+
+### stanza/stanza_postgres/ (PostgreSQL adapter)
+
+| File | Purpose |
+|------|---------|
+| `lib/stanza_postgres.dart` | Barrel export — Stanza, schema, CLI |
+| `lib/src/postgres_database.dart` | `Stanza` (pool manager, implements `DatabaseAdapter`), `StanzaSession` (implements `SessionAdapter`) |
+| `lib/src/schema/pg_introspector.dart` | `PgIntrospector` — reads `information_schema` |
+| `lib/src/schema/pg_migration_runner.dart` | `PgMigrationRunner` — applies migrations, SHA-256 checksums, tracking table |
+| `lib/src/schema/pg_schema_manager.dart` | `PgSchemaManager` — orchestrates diff → generate → apply |
+| `lib/src/schema/pg_cli.dart` | `PgCli` — CLI: status, diff, generate, apply |
 
 ### stanza/stanza_builder/ (code generation)
 
@@ -79,6 +86,26 @@ dart test --reporter github 2>/dev/null
 | `test/models_test.dart` | 20 tests against generated code |
 
 ## Architecture
+
+### Database Adapter Pattern
+
+The core package defines abstract interfaces that decouple query execution from any specific driver:
+
+```dart
+abstract class DatabaseAdapter {
+  Future<QueryResult<T>> execute<T, D>(Query<T, D> query);
+  Future<QueryResult<Never>> rawExecute(String sql, {Map<String, dynamic>? parameters});
+  Future<T> run<T>(AdapterSessionBlock<T> block);
+  Future<T> transaction<T>(AdapterSessionBlock<T> block);
+  Future<List<R>> rawQuery<R>(String sql, {...});
+  ParameterCollector createParameterCollector();
+  Future<void> close();
+}
+```
+
+`Stanza` in `stanza_postgres` implements `DatabaseAdapter` using the `postgres` v3 driver. Future adapters (e.g. SQLite) would implement the same interface with their own driver.
+
+`ParameterCollector` has a configurable `placeholderPrefix` — `@` for Postgres (`@p0`), `:` for SQLite (`:p0`). The values map keys stay unprefixed (`p0`); only the SQL placeholder changes.
 
 ### Two-Type-Parameter Pattern
 
@@ -119,7 +146,7 @@ The `_RawFragment` approach avoids adding FTS-specific types to the Expression h
 
 Field naming: Dart camelCase → snake_case column names (via `recase` package). Table naming: class name → pluralized snake_case.
 
-The `$schema` getter generates full `SchemaTable` metadata including `SchemaColumn` types, constraints (PK, unique, FK), and defaults — used by `SchemaManager` for migration diffing.
+The `$schema` getter generates full `SchemaTable` metadata including `SchemaColumn` types (with `dartTypeName` for cross-dialect mapping), constraints (PK, unique, FK), and defaults — used by `PgSchemaManager` for migration diffing.
 
 ### Schema Diff Engine
 
@@ -132,12 +159,12 @@ The `$schema` getter generates full `SchemaTable` metadata including `SchemaColu
 - Removed columns → `DropColumn` (commented out with `-- SAFETY:`)
 - Constraint additions/removals → `AddConstraint`/`DropConstraint`
 
-### Migration Pipeline
+### Migration Pipeline (PostgreSQL)
 
-1. `SchemaManager` reads `$schema` from each `TableDescriptor`, topologically sorts by FK dependencies (Kahn's algorithm), introspects live database via `information_schema`
+1. `PgSchemaManager` reads `$schema` from each `TableDescriptor`, topologically sorts by FK dependencies (Kahn's algorithm), introspects live database via `PgIntrospector` (queries `information_schema`)
 2. `SchemaDiff.diff()` produces operations per table
 3. `MigrationFileWriter.generate()` renders operations to timestamped SQL wrapped in `BEGIN`/`COMMIT`
-4. `MigrationRunner.apply()` executes pending files in filename order, records each in `_stanza_migrations` tracking table with SHA-256 checksum; rejects modified applied migrations
+4. `PgMigrationRunner.apply()` executes pending files in filename order, records each in `_stanza_migrations` tracking table with SHA-256 checksum; rejects modified applied migrations
 
 ### Safety Constraints
 
@@ -156,4 +183,4 @@ The `$schema` getter generates full `SchemaTable` metadata including `SchemaColu
 
 ## Current Status
 
-v2 rewrite complete (Phases 0-6). All features implemented and tested. Zero analysis issues.
+v2 rewrite complete with multi-database adapter support. Core package is database-agnostic; PostgreSQL adapter in `stanza_postgres`. Zero analysis issues.

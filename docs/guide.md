@@ -10,7 +10,12 @@ dependencies:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza
-      ref: v2
+      ref: dev
+  stanza_postgres:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza_postgres
+      ref: dev
 
 dev_dependencies:
   build_runner: ^2.4.0
@@ -18,7 +23,7 @@ dev_dependencies:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza_builder
-      ref: v2
+      ref: dev
 ```
 
 ## Quick Start
@@ -50,6 +55,9 @@ dart run build_runner build --delete-conflicting-outputs
 ```
 
 ```dart
+import 'package:stanza_postgres/stanza_postgres.dart';
+
+final db = Stanza.url('postgresql://user:pass@host/dbname');
 final users = $UserTable();
 
 // Query
@@ -106,7 +114,7 @@ const Field({String? name, int? length, bool unique = false, String? defaultValu
 | `length` | `int?` | `null` | VARCHAR length: `@Field(length: 100)` → `varchar(100)` |
 | `unique` | `bool` | `false` | Add UNIQUE constraint |
 | `defaultValue` | `String?` | `null` | SQL DEFAULT expression: `'now()'`, `'true'` |
-| `type` | `String?` | `null` | Override PostgreSQL type: `'jsonb'`, `'uuid'` |
+| `type` | `String?` | `null` | Override SQL type: `'jsonb'`, `'uuid'` |
 | `ignore` | `bool` | `false` | Skip field in generated code |
 
 ### @References
@@ -170,7 +178,7 @@ class $UserTable extends TableDescriptor<User> {
     createdAt: row['created_at'] as DateTime,
   );
 
-  SchemaTable get $schema => SchemaTable(...);  // full schema metadata
+  SchemaTable get $schema => SchemaTable(...);  // full schema metadata with dartTypeName
 }
 ```
 
@@ -276,12 +284,12 @@ Same numeric operations as `IntColumn` but typed for `double`. Also has `sum()` 
 
 ```dart
 Expression like(String pattern)      // column LIKE @pattern (case-sensitive)
-Expression ilike(String pattern)     // column ILIKE @pattern (case-insensitive)
+Expression ilike(String pattern)     // column ILIKE @pattern (case-insensitive, PostgreSQL)
 Expression startsWith(String prefix) // column LIKE '@prefix%'
 Expression endsWith(String suffix)   // column LIKE '%@suffix'
 Expression contains(String sub)      // column LIKE '%@sub%'
 
-// Full-text search
+// Full-text search (PostgreSQL)
 Expression fullTextMatches(String query, {
   FtsConfig config = FtsConfig.english,
   FtsQueryType queryType = FtsQueryType.plain,
@@ -739,20 +747,24 @@ Parameters from the subquery merge correctly with the outer query's parameters.
 
 ---
 
-## Connection
+## Connection (PostgreSQL)
 
 ```dart
-import 'package:stanza/stanza.dart';
+import 'package:stanza_postgres/stanza_postgres.dart';
 ```
 
-### Stanza
+### DatabaseAdapter Interface
+
+All database adapters implement the `DatabaseAdapter` abstract class from `package:stanza/stanza.dart`. This is the type used by `TableAccessor` and the executable extensions — your code works with any adapter.
+
+### Stanza (PostgreSQL Adapter)
 
 ```dart
 // From PostgreSQL URL (recommended)
 final db = Stanza.url(
   'postgresql://user:pass@host/dbname',
   maxConnections: 25,           // default: 25
-  sslMode: SslMode.require,    // default: disable
+  sslMode: SslMode.require,    // default: require
   connectTimeout: Duration(seconds: 15),
   queryTimeout: Duration(seconds: 30),
   applicationName: 'my-app',
@@ -812,7 +824,7 @@ await db.run((session) async {
 });
 ```
 
-`StanzaSession` has the same `execute`, `rawExecute`, and `rawQuery` methods as `Stanza`.
+`StanzaSession` (implements `SessionAdapter`) has the same `execute`, `rawExecute`, and `rawQuery` methods as `Stanza`.
 
 ### Streaming
 
@@ -853,11 +865,11 @@ class QueryResult<T> {
 
 ## TableAccessor
 
-High-level CRUD interface, typically created by a generated `$AppDatabase`.
+High-level CRUD interface. Accepts any `DatabaseAdapter`.
 
 ```dart
 class TableAccessor<T, D extends TableDescriptor<T>> {
-  TableAccessor(D descriptor, Stanza db);
+  TableAccessor(D descriptor, DatabaseAdapter db);
 
   SelectQuery<T, D> select();
   Future<T> insertRow(Map<String, dynamic> values);
@@ -900,15 +912,15 @@ final user = await accessor.upsertRow(
 
 ```dart
 // SelectQuery
-Future<List<T>> run(Stanza db);
+Future<List<T>> run(DatabaseAdapter db);
 
 // UpdateQuery
-Future<int> run(Stanza db);                  // affected rows
-Future<List<T>> runReturning(Stanza db);     // updated entities
+Future<int> run(DatabaseAdapter db);                  // affected rows
+Future<List<T>> runReturning(DatabaseAdapter db);     // updated entities
 
 // DeleteQuery
-Future<int> run(Stanza db);                  // affected rows
-Future<List<T>> runReturning(Stanza db);     // deleted entities
+Future<int> run(DatabaseAdapter db);                  // affected rows
+Future<List<T>> runReturning(DatabaseAdapter db);     // deleted entities
 ```
 
 ---
@@ -935,7 +947,7 @@ final (:sql, :parameters) = query.build();
 ```dart
 class StanzaException implements Exception {
   final String message;
-  final Object? cause;    // underlying postgres exception, if any
+  final Object? cause;    // underlying database exception, if any
 }
 ```
 
@@ -947,9 +959,11 @@ Thrown when:
 
 ---
 
-## Schema Management
+## Schema Management (PostgreSQL)
 
-Import: `import 'package:stanza/schema.dart';`
+Import: `import 'package:stanza_postgres/stanza_postgres.dart';`
+
+Schema management is provided by the PostgreSQL adapter package. The core `stanza` package provides the schema types (`SchemaTable`, `SchemaColumn`, `SchemaDiffOp`, etc.) and the diff engine, while `stanza_postgres` provides the database-specific introspection, migration runner, and CLI.
 
 ### Migration CLI
 
@@ -957,10 +971,10 @@ Create a `bin/migrate.dart`:
 
 ```dart
 import 'dart:io';
-import 'package:stanza/schema.dart';
+import 'package:stanza_postgres/stanza_postgres.dart';
 import 'package:my_app/models.dart';
 
-void main(List<String> args) => StanzaCli.run(
+void main(List<String> args) => PgCli.run(
   args,
   databaseUrl: Platform.environment['DATABASE_URL']!,
   tables: [$UserTable(), $PostTable()],
@@ -978,7 +992,11 @@ dart run bin/migrate.dart apply --dry-run  # preview without executing
 ### Programmatic API
 
 ```dart
-final manager = SchemaManager(
+import 'package:stanza_postgres/stanza_postgres.dart';
+
+final db = Stanza.url('postgresql://user:pass@host/dbname');
+
+final manager = PgSchemaManager(
   db,
   tables: [$UserTable(), $PostTable()],
   migrationsDir: 'migrations',
@@ -1015,11 +1033,11 @@ class MigrationStatus {
 
 ### How It Works
 
-1. `SchemaManager` reads `$schema` from each table descriptor and queries `information_schema` for the live database state
+1. `PgSchemaManager` reads `$schema` from each table descriptor and queries `information_schema` (via `PgIntrospector`) for the live database state
 2. Tables are topologically sorted by FK dependencies so parent tables are created first
 3. `SchemaDiff.diff()` computes operations per table
 4. `MigrationFileWriter` renders operations to a timestamped `.sql` file wrapped in `BEGIN`/`COMMIT`
-5. `MigrationRunner` applies pending files in filename order, recording each in `_stanza_migrations` with a SHA-256 checksum
+5. `PgMigrationRunner` applies pending files in filename order, recording each in `_stanza_migrations` with a SHA-256 checksum
 6. Modified applied migrations are rejected (checksum mismatch)
 
 ---
@@ -1028,6 +1046,7 @@ class MigrationStatus {
 
 ```dart
 import 'package:stanza/stanza.dart';
+import 'package:stanza_postgres/stanza_postgres.dart';
 
 part 'models.g.dart';
 
