@@ -1,5 +1,6 @@
 import 'column.dart';
 import 'expression.dart';
+import 'fts.dart';
 import 'order.dart';
 import 'parameter.dart';
 import 'query.dart';
@@ -17,10 +18,15 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   final List<Expression> _wheres = [];
   final List<OrderExpression> _orders = [];
   final List<_Join> _joins = [];
+  final List<Expression> _havingConditions = [];
+  final List<AggregateExpression> _extraSelects = [];
+  final List<_RawFragment> _rawSelectFragments = [];
+  final List<_RawFragment> _rawOrderFragments = [];
   int? _limit;
   int? _offset;
   bool _distinct = false;
   List<Column>? _selectColumns;
+  List<Column>? _groupByColumns;
 
   SelectQuery(super.table);
 
@@ -57,6 +63,125 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   /// Selects specific columns instead of `*`.
   SelectQuery<T, D> selectOnly(List<Column> Function(D t) columns) {
     _selectColumns = columns(table);
+    return this;
+  }
+
+  /// Adds an aggregate expression to the SELECT clause.
+  ///
+  /// ```dart
+  /// query.selectExpression(posts.id.count().as('post_count'));
+  /// ```
+  SelectQuery<T, D> selectExpression(AggregateExpression agg) {
+    _extraSelects.add(agg);
+    return this;
+  }
+
+  /// Groups results by the specified columns.
+  ///
+  /// ```dart
+  /// query.groupBy((t) => [t.authorId]);
+  /// ```
+  SelectQuery<T, D> groupBy(List<Column> Function(D t) columns) {
+    _groupByColumns = columns(table);
+    return this;
+  }
+
+  /// Adds a HAVING condition on grouped results. Multiple calls are ANDed.
+  ///
+  /// ```dart
+  /// query.having((t) => t.id.count().greaterThan(5));
+  /// ```
+  SelectQuery<T, D> having(Expression Function(D t) predicate) {
+    _havingConditions.add(predicate(table));
+    return this;
+  }
+
+  // -- Full-text search projections --
+
+  /// Adds `ts_rank(...)` to SELECT and optionally ORDER BY rank DESC.
+  ///
+  /// ```dart
+  /// query
+  ///   .where((t) => t.body.fullTextMatches('optimization'))
+  ///   .selectRank((t) => t.body, 'optimization');
+  /// ```
+  SelectQuery<T, D> selectRank(
+    StringColumn Function(D t) column,
+    String query, {
+    String alias = 'rank',
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+    bool orderByRank = true,
+  }) {
+    final col = column(table);
+    final tsvec = "to_tsvector('${config.value}', ${col.qualified})";
+    final tsq = "${queryType.functionName}('${config.value}', :q)";
+    _rawSelectFragments.add(_RawFragment(
+      'ts_rank($tsvec, $tsq) AS $alias',
+      {'q': query},
+    ));
+    if (orderByRank) {
+      _rawOrderFragments.add(_RawFragment(
+        'ts_rank($tsvec, $tsq) DESC',
+        {'q': query},
+      ));
+    }
+    return this;
+  }
+
+  /// Adds `ts_headline(...)` to SELECT for highlighted search results.
+  SelectQuery<T, D> selectHeadline(
+    StringColumn Function(D t) column,
+    String query, {
+    String alias = 'headline',
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+    String? options,
+  }) {
+    final col = column(table);
+    final buf = StringBuffer(
+      "ts_headline('${config.value}', ${col.qualified}, "
+      "${queryType.functionName}('${config.value}', :q)",
+    );
+    if (options != null) {
+      buf.write(", '$options'");
+    }
+    buf.write(') AS $alias');
+    _rawSelectFragments.add(_RawFragment(buf.toString(), {'q': query}));
+    return this;
+  }
+
+  /// Adds `similarity(column, @text)` to SELECT and optionally ORDER BY DESC.
+  SelectQuery<T, D> selectSimilarity(
+    StringColumn Function(D t) column,
+    String text, {
+    String alias = 'similarity_score',
+    bool orderBySimilarity = true,
+  }) {
+    final col = column(table);
+    _rawSelectFragments.add(_RawFragment(
+      'similarity(${col.qualified}, :t) AS $alias',
+      {'t': text},
+    ));
+    if (orderBySimilarity) {
+      _rawOrderFragments.add(_RawFragment(
+        'similarity(${col.qualified}, :t) DESC',
+        {'t': text},
+      ));
+    }
+    return this;
+  }
+
+  /// Adds `column <-> @text` to ORDER BY for GiST-friendly trigram distance.
+  SelectQuery<T, D> orderByDistance(
+    StringColumn Function(D t) column,
+    String text,
+  ) {
+    final col = column(table);
+    _rawOrderFragments.add(_RawFragment(
+      '${col.qualified} <-> :t',
+      {'t': text},
+    ));
     return this;
   }
 
@@ -100,6 +225,16 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
       buf.write('${table.tableName}.*');
     }
 
+    // Extra aggregate/expression projections
+    for (final agg in _extraSelects) {
+      buf.write(', ${agg.toSelectSql()}');
+    }
+
+    // Raw select fragments (FTS rank, headline, similarity)
+    for (final frag in _rawSelectFragments) {
+      buf.write(', ${frag.render(params)}');
+    }
+
     // FROM
     buf.write(' FROM ${table.tableName}');
 
@@ -114,17 +249,38 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
       if (_wheres.length == 1) {
         buf.write(_wheres.first.toSql(params));
       } else {
-        // Multiple wheres are ANDed together
         final combined =
             _wheres.reduce((a, b) => And(a, b));
         buf.write(combined.toSql(params));
       }
     }
 
+    // GROUP BY
+    if (_groupByColumns != null && _groupByColumns!.isNotEmpty) {
+      buf.write(' GROUP BY ');
+      buf.write(_groupByColumns!.map((c) => c.qualified).join(', '));
+    }
+
+    // HAVING
+    if (_havingConditions.isNotEmpty) {
+      buf.write(' HAVING ');
+      if (_havingConditions.length == 1) {
+        buf.write(_havingConditions.first.toSql(params));
+      } else {
+        final combined =
+            _havingConditions.reduce((a, b) => And(a, b));
+        buf.write(combined.toSql(params));
+      }
+    }
+
     // ORDER BY
-    if (_orders.isNotEmpty) {
+    final orderParts = <String>[
+      ..._orders.map((o) => o.toSql()),
+      ..._rawOrderFragments.map((f) => f.render(params)),
+    ];
+    if (orderParts.isNotEmpty) {
       buf.write(' ORDER BY ');
-      buf.write(_orders.map((o) => o.toSql()).join(', '));
+      buf.write(orderParts.join(', '));
     }
 
     // LIMIT
@@ -147,4 +303,21 @@ class _Join {
   final Expression on;
 
   _Join(this.type, this.tableName, this.on);
+}
+
+/// A raw SQL fragment with named placeholders that get resolved to `@pN`.
+class _RawFragment {
+  final String template;
+  final Map<String, Object?> values;
+
+  _RawFragment(this.template, this.values);
+
+  String render(ParameterCollector params) {
+    var result = template;
+    for (final entry in values.entries) {
+      final placeholder = params.add(entry.value);
+      result = result.replaceAll(':${entry.key}', placeholder);
+    }
+    return result;
+  }
 }

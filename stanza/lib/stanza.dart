@@ -9,6 +9,7 @@ export 'src/column.dart';
 export 'src/delete_query.dart';
 export 'src/exception.dart';
 export 'src/expression.dart';
+export 'src/fts.dart';
 export 'src/insert_query.dart';
 export 'src/order.dart';
 export 'src/parameter.dart';

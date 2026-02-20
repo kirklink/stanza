@@ -1,5 +1,7 @@
 import 'expression.dart';
+import 'fts.dart';
 import 'order.dart';
+import 'query.dart';
 
 /// Base class for typed column references.
 ///
@@ -50,6 +52,23 @@ abstract class Column<T> {
   Expression equalsColumn(Column<T> other) =>
       ColumnComparison(qualified, '=', other.qualified);
 
+  // -- Subquery membership --
+
+  /// Subquery membership: `column IN (SELECT ...)`.
+  ///
+  /// ```dart
+  /// final activeIds = SelectQuery(users)
+  ///     .selectOnly((t) => [t.id])
+  ///     .where((t) => t.createdAt.after(cutoff));
+  /// SelectQuery(posts).where((t) => t.authorId.isInQuery(activeIds));
+  /// ```
+  Expression isInQuery(Query subquery) =>
+      SubqueryIn(qualified, (params) => subquery.toSql(params));
+
+  /// Subquery negative membership: `column NOT IN (SELECT ...)`.
+  Expression notInQuery(Query subquery) =>
+      SubqueryNotIn(qualified, (params) => subquery.toSql(params));
+
   // -- Ordering --
 
   /// Ascending order: `column ASC`.
@@ -57,6 +76,17 @@ abstract class Column<T> {
 
   /// Descending order: `column DESC`.
   OrderExpression desc() => OrderExpression(qualified, descending: true);
+
+  // -- Aggregates --
+
+  /// `COUNT(column)` — counts non-null values.
+  AggregateExpression count() => AggregateExpression('COUNT', qualified);
+
+  /// `MIN(column)` — minimum value.
+  AggregateExpression min() => AggregateExpression('MIN', qualified);
+
+  /// `MAX(column)` — maximum value.
+  AggregateExpression max() => AggregateExpression('MAX', qualified);
 }
 
 /// A column holding `int` values.
@@ -71,6 +101,12 @@ class IntColumn extends Column<int> {
   Expression lessThan(int value) => Comparison(qualified, '<', value);
   Expression lessThanOrEqual(int value) => Comparison(qualified, '<=', value);
   Expression between(int low, int high) => Between(qualified, low, high);
+
+  /// `SUM(column)` — total of all values.
+  AggregateExpression sum() => AggregateExpression('SUM', qualified);
+
+  /// `AVG(column)` — average of all values.
+  AggregateExpression avg() => AggregateExpression('AVG', qualified);
 }
 
 /// A column holding `double` values.
@@ -84,6 +120,12 @@ class DoubleColumn extends Column<double> {
   Expression lessThanOrEqual(double value) =>
       Comparison(qualified, '<=', value);
   Expression between(double low, double high) => Between(qualified, low, high);
+
+  /// `SUM(column)` — total of all values.
+  AggregateExpression sum() => AggregateExpression('SUM', qualified);
+
+  /// `AVG(column)` — average of all values.
+  AggregateExpression avg() => AggregateExpression('AVG', qualified);
 }
 
 /// A column holding `String` values.
@@ -111,6 +153,38 @@ class StringColumn extends Column<String> {
   /// Contains substring: `column LIKE '%@substring%'`.
   Expression contains(String substring) =>
       Like(qualified, '%$substring%', caseSensitive: true);
+
+  // -- Full-text search --
+
+  /// Full-text search match using `to_tsvector @@ tsquery`.
+  ///
+  /// ```dart
+  /// query.where((t) => t.body.fullTextMatches('database optimization'));
+  /// ```
+  Expression fullTextMatches(
+    String query, {
+    FtsConfig config = FtsConfig.english,
+    FtsQueryType queryType = FtsQueryType.plain,
+  }) =>
+      FullTextMatch(
+        qualified,
+        query,
+        config: config.value,
+        queryFunction: queryType.functionName,
+      );
+
+  // -- Trigram similarity --
+
+  /// Trigram similarity: `column % @text`.
+  ///
+  /// Requires the `pg_trgm` extension.
+  Expression isSimilarTo(String text) => TrigramSimilar(qualified, text);
+
+  /// Word-level trigram similarity: `@text %> column`.
+  ///
+  /// Requires the `pg_trgm` extension.
+  Expression isWordSimilarTo(String text) =>
+      TrigramWordSimilar(qualified, text);
 }
 
 /// A column holding `bool` values.

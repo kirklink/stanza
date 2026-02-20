@@ -146,6 +146,23 @@ class Stanza {
     }
   }
 
+  /// Executes raw SQL and maps results using a custom function.
+  ///
+  /// ```dart
+  /// final results = await db.rawQuery<({String name, int count})>(
+  ///   'SELECT name, count(*) as count FROM users GROUP BY name',
+  ///   mapper: (row) => (name: row['name'] as String, count: row['count'] as int),
+  /// );
+  /// ```
+  Future<List<R>> rawQuery<R>(
+    String sql, {
+    Map<String, dynamic>? parameters,
+    required R Function(Map<String, dynamic> row) mapper,
+  }) async {
+    final result = await rawExecute(sql, parameters: parameters);
+    return result.rows.map(mapper).toList();
+  }
+
   /// Closes the connection pool.
   Future<void> close() async {
     await _pool.close();
@@ -212,5 +229,15 @@ class StanzaSession {
     } on pg.PgException catch (e) {
       throw StanzaException('Raw query execution failed', cause: e);
     }
+  }
+
+  /// Executes raw SQL and maps results using a custom function.
+  Future<List<R>> rawQuery<R>(
+    String sql, {
+    Map<String, dynamic>? parameters,
+    required R Function(Map<String, dynamic> row) mapper,
+  }) async {
+    final result = await rawExecute(sql, parameters: parameters);
+    return result.rows.map(mapper).toList();
   }
 }
