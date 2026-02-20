@@ -55,7 +55,7 @@ class Stanza {
       [endpoint],
       settings: pg.PoolSettings(
         maxConnectionCount: maxConnections,
-        sslMode: sslMode ?? pg.SslMode.disable,
+        sslMode: sslMode ?? pg.SslMode.require,
         connectTimeout: connectTimeout ?? const Duration(seconds: 15),
         queryTimeout: queryTimeout ?? const Duration(seconds: 30),
         applicationName: applicationName,
