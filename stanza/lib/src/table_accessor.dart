@@ -20,9 +20,12 @@ import 'update_query.dart';
 ///     .run(db.connection);
 /// ```
 class TableAccessor<T, D extends TableDescriptor<T>> {
+  /// The table descriptor providing typed columns and row mapping.
   final D descriptor;
+
   final Stanza _db;
 
+  /// Creates an accessor bound to a table descriptor and database connection.
   TableAccessor(this.descriptor, this._db);
 
   /// Starts a SELECT query for this table.

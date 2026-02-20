@@ -180,7 +180,8 @@ class Stanza {
 
 /// A single database session for use in [Stanza.run] and [Stanza.transaction].
 ///
-/// Provides the same query execution API as [Stanza] but on a single connection.
+/// Provides the same query execution API as [Stanza] but operates on a
+/// single connection, ensuring sequential execution within the session.
 class StanzaSession {
   final pg.Session _session;
 

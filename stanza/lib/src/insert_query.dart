@@ -58,6 +58,9 @@ class InsertQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     return this;
   }
 
+  /// Generates the INSERT SQL statement.
+  ///
+  /// Throws [StateError] if no values have been provided via [values] or [valuesList].
   @override
   String toSql(ParameterCollector params) {
     if (_rows.isEmpty) {

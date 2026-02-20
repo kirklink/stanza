@@ -95,11 +95,20 @@ abstract class Column<T> {
 class IntColumn extends Column<int> {
   const IntColumn(super.name, super.table);
 
+  /// Greater than: `column > @value`.
   Expression greaterThan(int value) => Comparison(qualified, '>', value);
+
+  /// Greater than or equal: `column >= @value`.
   Expression greaterThanOrEqual(int value) =>
       Comparison(qualified, '>=', value);
+
+  /// Less than: `column < @value`.
   Expression lessThan(int value) => Comparison(qualified, '<', value);
+
+  /// Less than or equal: `column <= @value`.
   Expression lessThanOrEqual(int value) => Comparison(qualified, '<=', value);
+
+  /// Range test: `column BETWEEN @low AND @high`.
   Expression between(int low, int high) => Between(qualified, low, high);
 
   /// `SUM(column)` — total of all values.
@@ -110,15 +119,26 @@ class IntColumn extends Column<int> {
 }
 
 /// A column holding `double` values.
+///
+/// Provides numeric comparison operations in addition to the universal ones.
 class DoubleColumn extends Column<double> {
   const DoubleColumn(super.name, super.table);
 
+  /// Greater than: `column > @value`.
   Expression greaterThan(double value) => Comparison(qualified, '>', value);
+
+  /// Greater than or equal: `column >= @value`.
   Expression greaterThanOrEqual(double value) =>
       Comparison(qualified, '>=', value);
+
+  /// Less than: `column < @value`.
   Expression lessThan(double value) => Comparison(qualified, '<', value);
+
+  /// Less than or equal: `column <= @value`.
   Expression lessThanOrEqual(double value) =>
       Comparison(qualified, '<=', value);
+
+  /// Range test: `column BETWEEN @low AND @high`.
   Expression between(double low, double high) => Between(qualified, low, high);
 
   /// `SUM(column)` — total of all values.

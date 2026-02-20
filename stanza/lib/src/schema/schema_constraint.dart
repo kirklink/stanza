@@ -1,5 +1,14 @@
 /// The kind of database constraint.
-enum ConstraintKind { primaryKey, unique, foreignKey }
+enum ConstraintKind {
+  /// A PRIMARY KEY constraint.
+  primaryKey,
+
+  /// A UNIQUE constraint.
+  unique,
+
+  /// A FOREIGN KEY constraint referencing another table.
+  foreignKey,
+}
 
 /// Represents a database constraint (primary key, unique, or foreign key).
 class SchemaConstraint {

@@ -16,7 +16,14 @@ const _refChecker =
     TypeChecker.fromUrl('package:stanza/src/annotations.dart#References');
 
 /// Generates table descriptors, companions, and mappers from `@Entity` classes.
+///
+/// For each `@Entity`-annotated class, generates:
+/// - `$<Name>Table` — a [TableDescriptor] with typed columns and `fromRow()`
+/// - `<Name>Insert` — insert companion (excludes auto-increment PK)
+/// - `<Name>Update` — update companion (all writable fields optional)
+/// - `<Name>CopyWith` — extension with `copyWith()` method
 class EntityGenerator extends GeneratorForAnnotation<Entity> {
+  /// Processes a single `@Entity` class and returns the generated source code.
   @override
   String generateForAnnotatedElement(
     Element element,

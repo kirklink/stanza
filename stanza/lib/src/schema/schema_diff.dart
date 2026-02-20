@@ -14,7 +14,9 @@ sealed class SchemaDiffOp {
 
 /// Creates a new table with all its columns and constraints.
 class CreateTable extends SchemaDiffOp {
+  /// The complete table schema to create.
   final SchemaTable table;
+
   const CreateTable(this.table);
 
   @override
@@ -44,8 +46,12 @@ class CreateTable extends SchemaDiffOp {
 
 /// Adds a column to an existing table.
 class AddColumn extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The column definition to add.
   final SchemaColumn column;
+
   const AddColumn(this.tableName, this.column);
 
   @override
@@ -63,9 +69,15 @@ class AddColumn extends SchemaDiffOp {
 
 /// Changes a column's type.
 class AlterColumnType extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The column to alter.
   final String columnName;
+
+  /// The new PostgreSQL type (e.g. `'text'`, `'integer'`).
   final String newType;
+
   const AlterColumnType(this.tableName, this.columnName, this.newType);
 
   @override
@@ -75,9 +87,15 @@ class AlterColumnType extends SchemaDiffOp {
 
 /// Changes a column's nullability.
 class AlterColumnNullability extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The column to alter.
   final String columnName;
+
+  /// Whether the column should allow NULLs after the migration.
   final bool nullable;
+
   const AlterColumnNullability(this.tableName, this.columnName, this.nullable);
 
   @override
@@ -88,9 +106,15 @@ class AlterColumnNullability extends SchemaDiffOp {
 
 /// Changes a column's default value.
 class AlterColumnDefault extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The column to alter.
   final String columnName;
+
+  /// The new SQL DEFAULT expression, or null to drop the default.
   final String? newDefault;
+
   const AlterColumnDefault(this.tableName, this.columnName, this.newDefault);
 
   @override
@@ -101,8 +125,12 @@ class AlterColumnDefault extends SchemaDiffOp {
 
 /// Adds a constraint to an existing table.
 class AddConstraint extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The constraint to add (PK, unique, or FK).
   final SchemaConstraint constraint;
+
   const AddConstraint(this.tableName, this.constraint);
 
   @override
@@ -112,8 +140,12 @@ class AddConstraint extends SchemaDiffOp {
 
 /// Drops a column (commented out for safety — manual review required).
 class DropColumn extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The column to drop.
   final String columnName;
+
   const DropColumn(this.tableName, this.columnName);
 
   @override
@@ -123,8 +155,12 @@ class DropColumn extends SchemaDiffOp {
 
 /// Drops a constraint.
 class DropConstraint extends SchemaDiffOp {
+  /// The target table name.
   final String tableName;
+
+  /// The constraint name to drop (e.g. `'users_email_key'`).
   final String constraintName;
+
   const DropConstraint(this.tableName, this.constraintName);
 
   @override

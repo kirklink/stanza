@@ -35,6 +35,9 @@ class DeleteQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     return this;
   }
 
+  /// Generates the DELETE SQL statement.
+  ///
+  /// Throws [StateError] if no WHERE clause is set without [allowUnsafe].
   @override
   String toSql(ParameterCollector params) {
     if (_wheres.isEmpty && !_allowUnsafe) {

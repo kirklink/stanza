@@ -5,8 +5,10 @@ import 'table.dart';
 ///
 /// Provides SQL generation and parameter collection.
 abstract class Query<T, D extends TableDescriptor<T>> {
+  /// The table descriptor this query operates on.
   final D table;
 
+  /// Creates a query bound to the given table descriptor.
   Query(this.table);
 
   /// Generates the SQL string, collecting parameterized values in [params].

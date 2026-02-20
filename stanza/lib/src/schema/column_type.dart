@@ -3,8 +3,10 @@
 /// Handles the mapping between Dart types, PostgreSQL types, and the
 /// `information_schema` UDT names returned by database introspection.
 class ColumnType {
+  /// The PostgreSQL type name (e.g. `'integer'`, `'text'`, `'timestamptz'`).
   final String value;
 
+  /// Creates a column type from a PostgreSQL type name.
   const ColumnType(this.value);
 
   /// Maps a Dart type name to the corresponding PostgreSQL type.

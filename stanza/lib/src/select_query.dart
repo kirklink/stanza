@@ -212,6 +212,10 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     return this;
   }
 
+  /// Generates the full SELECT SQL statement.
+  ///
+  /// Renders clauses in order: SELECT, FROM, JOIN, WHERE, GROUP BY,
+  /// HAVING, ORDER BY, LIMIT, OFFSET.
   @override
   String toSql(ParameterCollector params) {
     final buf = StringBuffer();

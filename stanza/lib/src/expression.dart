@@ -19,8 +19,13 @@ sealed class Expression {
 
 /// A simple comparison: `column op @param`.
 class Comparison extends Expression {
+  /// The qualified column name (e.g. `'users.email'`).
   final String column;
+
+  /// The SQL operator (e.g. `'='`, `'>'`, `'<'`).
   final String op;
+
+  /// The value to compare against.
   final Object? value;
 
   const Comparison(this.column, this.op, this.value);
@@ -34,7 +39,10 @@ class Comparison extends Expression {
 
 /// Logical AND of two expressions: `(left AND right)`.
 class And extends Expression {
+  /// The left-hand expression.
   final Expression left;
+
+  /// The right-hand expression.
   final Expression right;
 
   const And(this.left, this.right);
@@ -46,7 +54,10 @@ class And extends Expression {
 
 /// Logical OR of two expressions: `(left OR right)`.
 class Or extends Expression {
+  /// The left-hand expression.
   final Expression left;
+
+  /// The right-hand expression.
   final Expression right;
 
   const Or(this.left, this.right);
@@ -58,6 +69,7 @@ class Or extends Expression {
 
 /// Logical NOT: `NOT (inner)`.
 class Not extends Expression {
+  /// The expression to negate.
   final Expression inner;
 
   const Not(this.inner);
@@ -69,7 +81,10 @@ class Not extends Expression {
 
 /// Membership test: `column IN (@p0, @p1, ...)`.
 class InList extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The list of values to test membership against.
   final List<Object?> values;
 
   const InList(this.column, this.values);
@@ -83,7 +98,10 @@ class InList extends Expression {
 
 /// Negative membership test: `column NOT IN (@p0, @p1, ...)`.
 class NotInList extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The list of values to test exclusion against.
   final List<Object?> values;
 
   const NotInList(this.column, this.values);
@@ -97,6 +115,7 @@ class NotInList extends Expression {
 
 /// Null check: `column IS NULL`.
 class IsNull extends Expression {
+  /// The qualified column name.
   final String column;
 
   const IsNull(this.column);
@@ -107,6 +126,7 @@ class IsNull extends Expression {
 
 /// Not-null check: `column IS NOT NULL`.
 class IsNotNull extends Expression {
+  /// The qualified column name.
   final String column;
 
   const IsNotNull(this.column);
@@ -117,8 +137,13 @@ class IsNotNull extends Expression {
 
 /// Range test: `column BETWEEN @low AND @high`.
 class Between extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The lower bound of the range (inclusive).
   final Object? low;
+
+  /// The upper bound of the range (inclusive).
   final Object? high;
 
   const Between(this.column, this.low, this.high);
@@ -133,8 +158,13 @@ class Between extends Expression {
 
 /// Pattern match: `column LIKE @pattern` or `column ILIKE @pattern`.
 class Like extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The LIKE pattern (e.g. `'%@example.com'`).
   final String pattern;
+
+  /// Whether to use case-sensitive `LIKE` (true) or `ILIKE` (false).
   final bool caseSensitive;
 
   const Like(this.column, this.pattern, {this.caseSensitive = true});
@@ -151,8 +181,13 @@ class Like extends Expression {
 ///
 /// Used for JOIN conditions where both sides are columns.
 class ColumnComparison extends Expression {
+  /// The qualified left-hand column name.
   final String leftColumn;
+
+  /// The SQL operator (e.g. `'='`).
   final String op;
+
+  /// The qualified right-hand column name.
   final String rightColumn;
 
   const ColumnComparison(this.leftColumn, this.op, this.rightColumn);
@@ -163,9 +198,16 @@ class ColumnComparison extends Expression {
 
 /// Full-text search match: `to_tsvector(config, col) @@ tsquery_fn(config, @param)`.
 class FullTextMatch extends Expression {
+  /// The qualified column name containing searchable text.
   final String column;
+
+  /// The search query text.
   final String query;
+
+  /// The PostgreSQL text search configuration (e.g. `'english'`).
   final String config;
+
+  /// The tsquery function name (e.g. `'plainto_tsquery'`).
   final String queryFunction;
 
   const FullTextMatch(
@@ -183,8 +225,13 @@ class FullTextMatch extends Expression {
 }
 
 /// Trigram similarity: `column % @param`.
+///
+/// Requires the `pg_trgm` PostgreSQL extension.
 class TrigramSimilar extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The text to compare for similarity.
   final String text;
 
   const TrigramSimilar(this.column, this.text);
@@ -197,8 +244,13 @@ class TrigramSimilar extends Expression {
 }
 
 /// Word-level trigram similarity: `@param %> column`.
+///
+/// Requires the `pg_trgm` PostgreSQL extension.
 class TrigramWordSimilar extends Expression {
+  /// The qualified column name.
   final String column;
+
+  /// The text to compare for word-level similarity.
   final String text;
 
   const TrigramWordSimilar(this.column, this.text);
@@ -215,6 +267,7 @@ class TrigramWordSimilar extends Expression {
 /// The subquery shares the same [ParameterCollector] as the outer query,
 /// so all parameters are correctly numbered.
 class SubqueryIn extends Expression {
+  /// The qualified column name.
   final String column;
   final String Function(ParameterCollector) _subquerySql;
 
@@ -228,7 +281,11 @@ class SubqueryIn extends Expression {
 }
 
 /// Subquery negative membership: `column NOT IN (SELECT ...)`.
+///
+/// The subquery shares the same [ParameterCollector] as the outer query,
+/// so all parameters are correctly numbered.
 class SubqueryNotIn extends Expression {
+  /// The qualified column name.
   final String column;
   final String Function(ParameterCollector) _subquerySql;
 
@@ -245,8 +302,13 @@ class SubqueryNotIn extends Expression {
 ///
 /// Used in HAVING clauses.
 class AggregateComparison extends Expression {
+  /// The aggregate function (e.g. `COUNT(users.id)`).
   final AggregateExpression aggregate;
+
+  /// The SQL comparison operator (e.g. `'>'`, `'='`).
   final String op;
+
+  /// The value to compare the aggregate result against.
   final Object value;
 
   const AggregateComparison(this.aggregate, this.op, this.value);
@@ -260,8 +322,13 @@ class AggregateComparison extends Expression {
 
 /// Range test on an aggregate: `COUNT(col) BETWEEN @low AND @high`.
 class AggregateBetween extends Expression {
+  /// The aggregate function.
   final AggregateExpression aggregate;
+
+  /// The lower bound (inclusive).
   final num low;
+
+  /// The upper bound (inclusive).
   final num high;
 
   const AggregateBetween(this.aggregate, this.low, this.high);
@@ -275,8 +342,14 @@ class AggregateBetween extends Expression {
 }
 
 /// Raw SQL expression with optional parameter values.
+///
+/// Named placeholders in [sql] (e.g. `:key`) are replaced with
+/// generated `@pN` parameters using values from [paramValues].
 class Raw extends Expression {
+  /// The SQL template, optionally containing `:name` placeholders.
   final String sql;
+
+  /// Named values to substitute for placeholders in [sql].
   final Map<String, Object?>? paramValues;
 
   const Raw(this.sql, {this.paramValues});
@@ -312,8 +385,13 @@ class Raw extends Expression {
 /// query.having((t) => t.id.count().greaterThan(5));
 /// ```
 class AggregateExpression {
+  /// The SQL function name (e.g. `'COUNT'`, `'SUM'`, `'AVG'`).
   final String function;
+
+  /// The qualified column reference (e.g. `'users.id'`) or `'*'` for COUNT(*).
   final String columnSql;
+
+  /// Optional alias for the SELECT list (e.g. `'post_count'`).
   final String? alias;
 
   const AggregateExpression(this.function, this.columnSql, {this.alias});
@@ -331,24 +409,31 @@ class AggregateExpression {
 
   // -- Comparison methods for HAVING clauses --
 
+  /// Aggregate greater than: `COUNT(col) > @value`.
   Expression greaterThan(num value) =>
       AggregateComparison(this, '>', value);
 
+  /// Aggregate greater than or equal: `COUNT(col) >= @value`.
   Expression greaterThanOrEqual(num value) =>
       AggregateComparison(this, '>=', value);
 
+  /// Aggregate less than: `COUNT(col) < @value`.
   Expression lessThan(num value) =>
       AggregateComparison(this, '<', value);
 
+  /// Aggregate less than or equal: `COUNT(col) <= @value`.
   Expression lessThanOrEqual(num value) =>
       AggregateComparison(this, '<=', value);
 
+  /// Aggregate equality: `COUNT(col) = @value`.
   Expression equals(num value) =>
       AggregateComparison(this, '=', value);
 
+  /// Aggregate inequality: `COUNT(col) != @value`.
   Expression notEquals(num value) =>
       AggregateComparison(this, '!=', value);
 
+  /// Aggregate range: `COUNT(col) BETWEEN @low AND @high`.
   Expression between(num low, num high) =>
       AggregateBetween(this, low, high);
 }
