@@ -1,318 +1,159 @@
-# Stanza - Dart PostgreSQL Query Builder
+# Stanza — Contributor Guide
 
-Type-safe PostgreSQL query builder with code generation and schema management. Fluent API for SELECT, INSERT, UPDATE, DELETE with parameterized queries, JOINs, RETURNING, streaming, full-text search, trigram similarity, and typed result mapping. Forward-only migration system with schema diffing.
+Type-safe, AI-first PostgreSQL ORM for Dart. Two packages: `stanza` (runtime) and `stanza_builder` (code generation).
 
-## Project Structure
-
-- `stanza/` - Runtime library (query builder, connection management, result types, schema management)
-- `stanza_builder/` - Code generator (source_gen/build_runner, reads annotations → generates Table classes with `$schema`)
-- `stanza/example/` - Example entity definitions with generated code + migration CLI script
-- `docs/assessment/stanza-modernized/ROADMAP.md` - Implementation roadmap (all phases complete)
-
-## Branch Strategy
-
-- `main` - Stable code
-- `dev` - All features merged (active)
-- `feature/modernization` - Core query builder (complete, merged to dev)
-- `feature/schema-management` - Schema management & migrations (complete, merged to dev)
+- For consumer-facing API reference, see [docs/guide.md](docs/guide.md)
 
 ## Commands
 
 ```bash
 # Run tests (from stanza/stanza/)
-dart test
+dart test --reporter github 2>/dev/null    # full pass/fail output
+dart test --reporter github 2>/dev/null | tail -1  # summary only
 
-# Analyze (from stanza/stanza/ or stanza/stanza_builder/)
-dart analyze
+# Analyze
+dart analyze                               # from stanza/stanza/ or stanza/stanza_builder/
 
 # Regenerate example code (from stanza/stanza/example/)
 dart run build_runner build --delete-conflicting-outputs
+
+# Run example tests (from stanza/stanza/example/)
+dart test --reporter github 2>/dev/null
 ```
 
-## Architecture
+## Branch
 
-### Two Packages
+- `v2` — Active development (clean break from v1, no backward compatibility)
 
-1. **stanza** (runtime) - Query classes, connection pool (postgres v3), result mapping, schema management (`lib/src/schema/`)
-2. **stanza_builder** (codegen) - source_gen generator reads `@StanzaEntity`/`@StanzaField`/`@PrimaryKey`/`@BelongsTo` annotations, generates typed `Table<T>` subclasses with `Field` accessors, `fromDb()`, `toDb()`, `$schema`, and JOIN helpers
+## Package Structure
 
-### Key Patterns
-
-- **Mixin composition**: `WhereClause` and `ReturningClause` are mixins on `Query`, shared across query types
-- **Parameterized queries**: All user values go through named parameters (`@name`) to prevent SQL injection
-- **Safe by default**: UPDATE/DELETE require WHERE clause unless `overrideSafety: true`
-- **Connection pooling**: postgres v3 `Pool` with instance caching by connection key
-- **Fluent builder**: Method chaining for query construction
-
-### Build Configuration (stanza_builder/build.yaml)
-
-- `build_to: cache`, builder name `stanza_entity`, applies `combining_builder`
-- Output: `.stanza.g.part` files
-
-## Key Files
+### stanza/stanza/ (runtime)
 
 | File | Purpose |
 |------|---------|
-| `stanza/lib/src/stanza.dart` | Stanza/StanzaSession classes (pool, execute, transactions, streaming) |
-| `stanza/lib/src/annotations.dart` | @StanzaEntity, @StanzaField, @PrimaryKey, @BelongsTo |
-| `stanza/lib/src/table.dart` | Abstract Table<T> with fromDb/toDb/$schema |
-| `stanza/lib/src/field.dart` | Field class with aggregates (sum, avg, count, min, max) |
-| `stanza/lib/src/select/select_query.dart` | SelectQuery (joins, groupBy, orderBy, limit, offset, FTS rank/headline, similarity) |
-| `stanza/lib/src/insert/insert_query.dart` | InsertQuery (single, batch, upsert) |
-| `stanza/lib/src/update/update_query.dart` | UpdateQuery with SetValue (.string, .number, etc.) |
-| `stanza/lib/src/delete/delete_query.dart` | DeleteQuery |
-| `stanza/lib/src/shared/where_clause.dart` | WhereClause mixin (where/and/or) |
-| `stanza/lib/src/shared/where_operations.dart` | WhereOperation (20+ comparison operators + FTS + trigram) |
-| `stanza/lib/src/shared/fts_config.dart` | FtsConfig enum (language configs) + FtsQueryType enum |
-| `stanza/lib/src/shared/returning_clause.dart` | ReturningClause mixin (returning/returningStar) |
-| `stanza/lib/src/select/join_clause.dart` | JoinClause (inner, left, right, cross) |
-| `stanza/lib/src/schema/column_type.dart` | PG type mapping + equivalence (serial ≡ integer) |
-| `stanza/lib/src/schema/schema_column.dart` | Column definition (type, nullable, PK, serial, unique, default) |
-| `stanza/lib/src/schema/schema_constraint.dart` | Constraint (PK, UNIQUE, FK with onDelete) |
-| `stanza/lib/src/schema/schema_table.dart` | Table = columns + constraints |
-| `stanza/lib/src/schema/schema_diff.dart` | Sealed SchemaDiffOp hierarchy + SchemaDiff.diff() |
-| `stanza/lib/src/schema/db_introspector.dart` | Queries information_schema for actual DB state |
-| `stanza/lib/src/schema/migration_file.dart` | Generates timestamped .sql migration files |
-| `stanza/lib/src/schema/migration_runner.dart` | Applies migrations, tracks in _stanza_migrations |
-| `stanza/lib/src/schema/schema_manager.dart` | Orchestrator: diff → generate → apply |
-| `stanza/lib/src/schema/stanza_cli.dart` | CLI helper (status/diff/generate/apply) |
-| `stanza_builder/lib/src/stanza_entity_generator.dart` | Main code generator (emits $schema getter) |
+| `lib/stanza.dart` | Main barrel export — everything |
+| `lib/schema.dart` | Schema-only barrel — for migration scripts |
+| `lib/annotations.dart` | Annotation-only barrel — for entity files |
+| `lib/src/annotations.dart` | `Entity`, `Field`, `PrimaryKey`, `References`, `Database` |
+| `lib/src/column.dart` | `Column<T>` hierarchy: Int, String, Bool, Double, DateTime columns |
+| `lib/src/expression.dart` | Sealed `Expression` tree (18 subtypes) + `AggregateExpression`, `CountAll` |
+| `lib/src/fts.dart` | `FtsConfig`, `FtsQueryType` enums |
+| `lib/src/order.dart` | `OrderExpression` (column + ASC/DESC) |
+| `lib/src/parameter.dart` | `ParameterCollector` — assigns `@p0`, `@p1`, collects values |
+| `lib/src/query.dart` | Abstract `Query<T, D>` base with `toSql()` and `build()` |
+| `lib/src/select_query.dart` | `SelectQuery` — WHERE, ORDER BY, JOIN, GROUP BY, HAVING, FTS projections |
+| `lib/src/insert_query.dart` | `InsertQuery` — values, valuesList, returning, onConflict |
+| `lib/src/update_query.dart` | `UpdateQuery` — SET from map, WHERE, returning, safety check |
+| `lib/src/delete_query.dart` | `DeleteQuery` — WHERE, returning, safety check |
+| `lib/src/stanza.dart` | `Stanza` (pool manager), `StanzaSession` (single connection) |
+| `lib/src/table.dart` | Abstract `TableDescriptor<T>` — base for generated table classes |
+| `lib/src/table_accessor.dart` | `TableAccessor` — typed CRUD, plus Executable extensions |
+| `lib/src/result.dart` | `QueryResult<T>` — rows, entities, affectedRows |
+| `lib/src/exception.dart` | `StanzaException` |
+| `lib/src/schema/column_type.dart` | Dart ↔ Postgres type mapping, equivalence (serial ≡ integer) |
+| `lib/src/schema/schema_column.dart` | `SchemaColumn` — name, type, nullable, default, PK, serial, unique |
+| `lib/src/schema/schema_constraint.dart` | `ConstraintKind` enum + `SchemaConstraint` |
+| `lib/src/schema/schema_table.dart` | `SchemaTable` — columns + constraints + naming helpers |
+| `lib/src/schema/schema_diff.dart` | Sealed `SchemaDiffOp` (8 subtypes) + `SchemaDiff.diff()` |
+| `lib/src/schema/db_introspector.dart` | `DbIntrospector` — reads `information_schema` |
+| `lib/src/schema/migration_file.dart` | `MigrationFileWriter` — generates timestamped .sql files |
+| `lib/src/schema/migration_runner.dart` | `MigrationRunner` — applies migrations, SHA-256 checksums |
+| `lib/src/schema/schema_manager.dart` | `SchemaManager` — orchestrates diff → generate → apply |
+| `lib/src/schema/stanza_cli.dart` | `StanzaCli` — CLI: status, diff, generate, apply |
 
-## Tests
+### stanza/stanza_builder/ (code generation)
 
-- 271 tests across 14 test files in `stanza/stanza/test/`
-- Unit tests cover all query types, WHERE operations, JOINs, RETURNING, field aggregates, FTS, trigram similarity, streaming, schema model, diff engine, migration file generation
-- Schema tests in `test/schema/`: `column_type_test.dart`, `schema_diff_test.dart`, `migration_file_test.dart`
-- Integration tests in `integration_test.dart` require `DATABASE_URL` env var (Neon PostgreSQL); skipped gracefully when not set
-- Test helpers in `test_helpers.dart` define mock `AnimalTable`, `OwnerTable`, `HabitatTable`
+| File | Purpose |
+|------|---------|
+| `lib/builder.dart` | `stanzaBuilder()` entry point — `SharedPartBuilder` |
+| `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema` |
+| `lib/src/type_mapping.dart` | `columnClassForDartType()`, `postgresTypeForDartType()`, `serialTypeForDartType()` |
+| `build.yaml` | Builder config: `stanza_entity`, `build_to: cache`, `combining_builder` |
 
-## API Quick Reference
+### stanza/stanza/example/ (test harness)
 
-### Connection
+| File | Purpose |
+|------|---------|
+| `lib/src/models.dart` | `User` and `Post` entities with annotations |
+| `lib/src/models.g.dart` | Generated code: `$UserTable`, `$PostTable`, companions |
+| `test/models_test.dart` | 20 tests against generated code |
 
-```dart
-// From URL (Neon, Supabase, etc.)
-final stanza = Stanza.url('postgresql://user:pass@host/db?sslmode=require');
+## Architecture
 
-// From credentials with connection config
-final stanza = Stanza.tcp(
-  PostgresCredentials('host', 5432, 'db', 'user', 'pass'),
-  maxConnections: 10,
-  sslMode: SslMode.require,
-  connectTimeout: Duration(seconds: 15),
-  queryTimeout: Duration(seconds: 30),
-  applicationName: 'my-app',
-);
+### Two-Type-Parameter Pattern
 
-// Raw SQL (DDL, migrations)
-await stanza.rawExecute('CREATE TABLE ...');
-
-// Transactions
-await stanza.runTransaction((session) async {
-  await session.execute(insertQuery);
-  return session.execute(selectQuery);
-});
-```
-
-### SELECT
+All query builders use `<T, D extends TableDescriptor<T>>` — `T` is the entity type, `D` is the table descriptor. This enables typed callbacks:
 
 ```dart
-final q = SelectQuery(Animal.$table)
-  ..selectStar()
-  ..where(Animal.$table.color).matches('orange')
-  ..and(Animal.$table.legs).isGreaterThan(2)
-  ..orderBy(Animal.$table.name)
-  ..limit(10);
-
-// DISTINCT:
-final q = SelectQuery(Animal.$table)
-  ..distinct()
-  ..selectFields([Animal.$table.color]);
-
-// GROUP BY + HAVING:
-final q = SelectQuery(Animal.$table)
-  ..selectFields([Animal.$table.color, Animal.$table.id..count()..rename('count')])
-  ..groupBy([Animal.$table.color])
-  ..having(Animal.$table.id..count()).isGreaterThan(2)
-  ..andHaving(Animal.$table.id..count()).isLessThan(100);
+SelectQuery<User, $UserTable>(users).where((t) => t.email.equals('x'));
+//                                          ^ t is $UserTable, so t.email is StringColumn
 ```
 
-### INSERT
+Dart sometimes can't infer `T` from `D extends TableDescriptor<T>` alone. When constructing queries inside `TableAccessor`, explicit type params are required: `SelectQuery<T, D>(descriptor)`.
 
-```dart
-// Single entity:
-final q = InsertQuery(Animal.$table)
-  ..insertEntity(animal)
-  ..returningStar();
+### Expression System
 
-// Batch insert:
-final q = InsertQuery(Animal.$table)
-  ..insertEntities<Animal>([tiger, eagle, snake])
-  ..returningStar();
+`Expression` is a sealed class with 18 subtypes. Column methods return `Expression` objects. `&` and `|` compose them into `And` and `Or` trees. `toSql(ParameterCollector)` renders to parameterized SQL.
 
-// Upsert (ON CONFLICT DO UPDATE):
-final q = InsertQuery(Animal.$table)
-  ..insertEntity(animal)
-  ..onConflict(
-    target: [Animal.$table.name],
-    doUpdate: (set) => set
-      ..column(Animal.$table.color).string('updated')
-      ..column(Animal.$table.legs).integer(4),
-  )
-  ..returningStar();
+`AggregateExpression` is **not** a sealed subtype — it's standalone. Its comparison methods (`greaterThan`, `equals`, etc.) produce `AggregateComparison`/`AggregateBetween` Expression subtypes for HAVING clauses.
 
-// ON CONFLICT DO NOTHING:
-final q = InsertQuery(Animal.$table)
-  ..insertEntity(animal)
-  ..onConflictDoNothing(target: [Animal.$table.name]);
-```
+### FTS Architecture
 
-### UPDATE
+Full-text search uses two layers:
+1. **Expression level:** `FullTextMatch`, `TrigramSimilar`, `TrigramWordSimilar` are sealed Expression subtypes — used in WHERE clauses via `StringColumn.fullTextMatches()`, etc.
+2. **SelectQuery level:** `selectRank()`, `selectHeadline()`, `selectSimilarity()`, `orderByDistance()` use `_RawFragment` internally — SQL template strings with named placeholders that get resolved to `@pN` via `ParameterCollector`.
 
-```dart
-final q = UpdateQuery(Animal.$table)
-  ..column(Animal.$table.color).string('white')
-  ..column(Animal.$table.legs).integer(4)
-  ..where(Animal.$table.id).isEqualTo(1)
-  ..returningStar();
-```
+The `_RawFragment` approach avoids adding FTS-specific types to the Expression hierarchy for projections that aren't WHERE conditions.
 
-### DELETE
+### Subquery Parameters
 
-```dart
-final q = DeleteQuery(Animal.$table)
-  ..where(Animal.$table.id).isEqualTo(1)
-  ..returningStar();
-```
+`SubqueryIn`/`SubqueryNotIn` store a `String Function(ParameterCollector)` closure instead of a `Query` reference. The outer query's `ParameterCollector` is passed through, so subquery parameters merge correctly with outer parameters (`@p0` for outer, `@p1` for subquery, etc.).
 
-### WHERE Operations
+### Code Generator
 
-- **Numeric**: `isEqualTo(num)`, `isGreaterThan(num)`, `isGreaterThanOrEqualTo(num)`, `isLessThan(num)`, `isLessThanOrEqualTo(num)`
-- **String**: `matches(String, {caseSensitive})`, `startsWith(String)`, `endsWith(String)`, `contains(String)`
-- **Set membership**: `isIn(List<Object>)`, `isNotIn(List<Object>)`
-- **Range**: `isBetween(Object low, Object high)`
-- **Boolean**: `isTrue()`, `isFalse()`
-- **Null**: `isNull()`, `isNotNull()`
-- **DateTime**: `isBefore(DateTime)`, `isAfter(DateTime)`, `isOn(DateTime)`
-- **Full-text search**: `fullTextMatches(String, {FtsConfig, FtsQueryType})` — `to_tsvector() @@ tsquery()`
-- **Trigram similarity**: `isSimilarTo(String)` — `field % @param`, `isWordSimilarTo(String)` — `@param %> field`
-- **Raw**: `raw(String sql)` for custom SQL conditions
+`EntityGenerator extends GeneratorForAnnotation<Entity>` processes annotated classes and emits:
+1. `$EntityTable extends TableDescriptor<Entity>` — typed columns, `fromRow()`, `$schema`
+2. `EntityInsert` — required fields minus auto-increment PK; optional fields with DB defaults
+3. `EntityUpdate` — all writable fields optional; `toRow()` omits nulls
+4. `EntityCopyWith` extension — `copyWith()` on the entity
 
-**Note**: `isEqualTo()` only accepts `num`, not `String`. Use `matches()` for string equality.
+Field naming: Dart camelCase → snake_case column names (via `recase` package). Table naming: class name → pluralized snake_case.
 
-### JOINs
+The `$schema` getter generates full `SchemaTable` metadata including `SchemaColumn` types, constraints (PK, unique, FK), and defaults — used by `SchemaManager` for migration diffing.
 
-```dart
-final q = SelectQuery(Animal.$table)..selectStar();
-Animal.$table.innerJoinOwner(q); // Generated typed JOIN helper
-q.where(Owner.$table.name).matches('alice');
+### Schema Diff Engine
 
-// Or manual:
-q.innerJoin(Owner.$table).on(Animal.$table.ownerId, Owner.$table.id);
-```
+`SchemaDiff.diff(expected, actual)` compares a single table pair and returns a `List<SchemaDiffOp>`:
+- `actual == null` → `CreateTable`
+- New columns → `AddColumn`
+- Type changes → `AlterColumnType` (skips serial ≡ integer equivalence)
+- Nullability changes → `AlterColumnNullability`
+- Default changes → `AlterColumnDefault` (skips serial columns entirely)
+- Removed columns → `DropColumn` (commented out with `-- SAFETY:`)
+- Constraint additions/removals → `AddConstraint`/`DropConstraint`
 
-### SetValue Types (UpdateQuery)
+### Migration Pipeline
 
-`column(field).string('v')`, `.number(1.5)`, `.integer(1)`, `.float(1.5)`, `.boolean(true)`, `.datetime(dt)`, `.any(val)`
+1. `SchemaManager` reads `$schema` from each `TableDescriptor`, topologically sorts by FK dependencies (Kahn's algorithm), introspects live database via `information_schema`
+2. `SchemaDiff.diff()` produces operations per table
+3. `MigrationFileWriter.generate()` renders operations to timestamped SQL wrapped in `BEGIN`/`COMMIT`
+4. `MigrationRunner.apply()` executes pending files in filename order, records each in `_stanza_migrations` tracking table with SHA-256 checksum; rejects modified applied migrations
 
-### OrderBy
+### Safety Constraints
 
-```dart
-q.orderBy(field);                      // ASC
-q.orderBy(field, descending: true);    // DESC
-```
+- UPDATE/DELETE without `.where()` throw `StanzaException` at `toSql()` time unless `.allowUnsafe()` is called
+- All user values go through `ParameterCollector` — never interpolated into SQL strings
+- `DropColumn` DDL is commented out by default — must be manually uncommented
+- Applied migrations are checksum-verified to prevent silent modification
 
-### Annotations (for code generation)
+## Testing
 
-```dart
-@StanzaEntity(name: 'table_name', snakeCase: true, readOnly: false)
-class MyEntity {
-  @PrimaryKey()                  // serial PK (auto-increment)
-  @StanzaField(readOnly: true)   // exclude from writes
-  late int id;
+- **229 total:** 209 core tests in `stanza/stanza/test/` + 20 example tests
+- Tests are pure Dart, no IO — construct columns/queries and assert SQL output
+- Schema tests: `column_type_test.dart` (22), `schema_diff_test.dart` (28), `migration_file_test.dart` (7)
+- Integration tests (live Postgres) skip gracefully without `DATABASE_URL`
+- Use `--reporter github 2>/dev/null` to avoid ANSI output overflow
 
-  @StanzaField(name: 'db_column_name')  // custom column name
-  late String myField;
+## Current Status
 
-  @StanzaField(unique: true)    // UNIQUE constraint (schema management)
-  late String email;
-
-  @StanzaField(type: 'jsonb')   // override PG type (schema management)
-  late String metadata;
-
-  @StanzaField(defaultValue: 'NOW()')  // SQL default (schema management)
-  late DateTime createdAt;
-
-  @StanzaField(ignore: true)     // skip in generated code
-  late String transient;
-
-  @BelongsTo(Owner, onDelete: 'CASCADE')  // FK with referential action
-  late int ownerId;
-
-  static final $table = _$MyEntityTable();
-}
-```
-
-### Full-Text Search & Trigram Similarity
-
-```dart
-// Full-text search WHERE (parameterized)
-q.where(t.body).fullTextMatches('cats dogs');
-q.where(t.body).fullTextMatches('"exact" -excluded', queryType: FtsQueryType.websearch);
-q.where(t.body).fullTextMatches('fat cats', queryType: FtsQueryType.phrase);
-q.where(t.body).fullTextMatches('gatos', config: FtsConfig.spanish);
-
-// Trigram similarity WHERE (requires pg_trgm extension)
-q.where(t.name).isSimilarTo('jonh');       // field % @param
-q.where(t.name).isWordSimilarTo('cat');    // @param %> field
-
-// Ranking and headlines (SELECT + ORDER BY)
-q.selectRank(t.body, 'query');             // ts_rank() in SELECT, ORDER BY DESC
-q.selectHeadline(t.body, 'query',          // ts_headline() in SELECT
-    options: 'StartSel=<b>, StopSel=</b>');
-q.selectSimilarity(t.name, 'jonh');        // similarity() in SELECT, ORDER BY DESC
-q.orderByDistance(t.name, 'jonh');          // field <-> @param ASC (GiST-friendly)
-```
-
-### Schema Management
-
-```bash
-# Create bin/migrate.dart in your project, then:
-dart run bin/migrate.dart status     # applied vs pending
-dart run bin/migrate.dart diff       # code vs database
-dart run bin/migrate.dart generate   # write .sql file
-dart run bin/migrate.dart apply      # apply pending
-dart run bin/migrate.dart apply --dry-run
-```
-
-```dart
-// bin/migrate.dart (minimal script)
-import 'dart:io';
-import 'package:stanza/schema.dart';
-import 'package:my_app/models.dart';
-
-void main(List<String> args) => StanzaCli.run(
-  args,
-  databaseUrl: Platform.environment['DATABASE_URL']!,
-  tables: [Owner.$table, Animal.$table],
-);
-```
-
-```dart
-// Or use the API directly:
-final manager = SchemaManager(stanza,
-  tables: [Owner.$table, Animal.$table],
-  migrationsDir: 'migrations',
-);
-final ops = await manager.diff();       // List<SchemaDiffOp>
-final path = await manager.generate();  // writes .sql file
-final applied = await manager.apply();  // applies pending
-```
-
-**Barrel exports**: `package:stanza/stanza.dart` (query builder + schema types for codegen), `package:stanza/schema.dart` (full schema management), `package:stanza/annotations.dart` (annotations only)
-
-## Integration Testing
-
-- Uses Neon PostgreSQL via `DATABASE_URL` environment variable
-- `.env` file is gitignored; see `.env.example` for format
-- `Stanza.url()` auto-strips unsupported connection params (e.g., Neon's `channel_binding`)
+v2 rewrite complete (Phases 0-6). All features implemented and tested. Zero analysis issues.
