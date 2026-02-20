@@ -1,42 +1,21 @@
-import 'package:stanza/src/stanza_exception.dart';
-import 'package:stanza/src/value_substitution.dart';
-import 'package:stanza/src/table.dart';
+import 'parameter.dart';
+import 'table.dart';
 
-/// The base class to create a Stanza query.
+/// Base class for all query types.
 ///
-/// The methods of Query are shared with all query implementations.
-abstract class Query {
-  final Table _table;
+/// Provides SQL generation and parameter collection.
+abstract class Query<T, D extends TableDescriptor<T>> {
+  final D table;
 
-  Map<String, dynamic> _substitutionValues = {};
+  Query(this.table);
 
-  Query(this._table);
+  /// Generates the SQL string, collecting parameterized values in [params].
+  String toSql(ParameterCollector params);
 
-  Table get table => _table;
-  Map<String, dynamic> get substitutionValues => _substitutionValues;
-
-  String statement({bool pretty = false}) {
-    throw StanzaException('Statement is not implemented.');
-  }
-
-  /// Print a query to the console.
-  @override
-  String toString() {
-    if (_substitutionValues.isEmpty) {
-      return 'Type: $runtimeType\n${statement(pretty: true)}';
-    }
-    return 'Type: $runtimeType\n${statement(pretty: true)}\nsubstitutionValues: $_substitutionValues';
-  }
-
-  void addSubstitution(ValueSub sub) {
-    _substitutionValues[sub.key] = sub.value;
-  }
-
-  void importSubstitutionValues(Map<String, dynamic> subs) {
-    _substitutionValues = Map.from(subs);
-  }
-
-  Query fork() {
-    throw StanzaException('Fork is not implemented.');
+  /// Convenience: generates SQL and returns both the statement and parameters.
+  ({String sql, Map<String, dynamic> parameters}) build() {
+    final params = ParameterCollector();
+    final sql = toSql(params);
+    return (sql: sql, parameters: params.values);
   }
 }

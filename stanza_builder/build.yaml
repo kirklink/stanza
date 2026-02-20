@@ -7,7 +7,7 @@ targets:
 builders:
   stanza_entity:
     target: ":stanza_builder"
-    import: "package:stanza_builder/src/stanza_builder.dart"
+    import: "package:stanza_builder/builder.dart"
     builder_factories: ["stanzaBuilder"]
     build_extensions: {".dart": [".stanza.g.part"]}
     auto_apply: dependents

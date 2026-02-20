@@ -1,13 +1,20 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 
+import '../exception.dart';
 import '../stanza.dart';
 
 /// Status of a single migration file.
 class MigrationStatus {
+  /// The migration filename (e.g. `'20260219_143022.sql'`).
   final String filename;
+
+  /// Whether this migration has been applied to the database.
   final bool applied;
+
+  /// When the migration was applied (null if pending).
   final DateTime? appliedAt;
 
   const MigrationStatus({
@@ -15,204 +22,174 @@ class MigrationStatus {
     required this.applied,
     this.appliedAt,
   });
-
-  @override
-  String toString() =>
-      'MigrationStatus($filename, applied=$applied${appliedAt != null ? ', at=$appliedAt' : ''})';
 }
 
-/// Applies and tracks migration files against the database.
+/// Applies migration files and tracks them in the database.
 ///
-/// Migrations are tracked in a `_stanza_migrations` table. Each file is
-/// applied in filename order (which is chronological due to the timestamp
-/// prefix). Applied migrations have their SHA-256 checksum recorded to
-/// detect tampering.
+/// Migration state is tracked in the `_stanza_migrations` table, which
+/// is created automatically. Checksums prevent tampering with applied migrations.
 class MigrationRunner {
-  final Stanza _stanza;
-  final String migrationsDir;
+  final Stanza _db;
+  final String _migrationsDir;
 
-  const MigrationRunner(this._stanza, {required this.migrationsDir});
+  MigrationRunner(this._db, {required String migrationsDir})
+      : _migrationsDir = migrationsDir;
 
-  /// Ensures the `_stanza_migrations` tracking table exists.
+  /// Creates the `_stanza_migrations` tracking table if it doesn't exist.
   Future<void> ensureTrackingTable() async {
-    await _stanza.rawExecute('''
-CREATE TABLE IF NOT EXISTS _stanza_migrations (
-  id SERIAL PRIMARY KEY,
-  filename TEXT NOT NULL UNIQUE,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  checksum TEXT NOT NULL
-)
-''');
+    await _db.rawExecute('''
+      CREATE TABLE IF NOT EXISTS _stanza_migrations (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL UNIQUE,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        checksum TEXT NOT NULL
+      )
+    ''');
   }
 
-  /// Returns the status of all migration files (applied or pending).
+  /// Returns the status of all migration files.
   Future<List<MigrationStatus>> status() async {
     await ensureTrackingTable();
 
     final files = _listMigrationFiles();
     if (files.isEmpty) return [];
 
-    final applied = await _getAppliedMigrations();
+    final result = await _db.rawExecute(
+      'SELECT filename, applied_at FROM _stanza_migrations '
+      'ORDER BY filename',
+    );
 
-    return files.map((file) {
-      final name = _filename(file);
-      final record = applied[name];
+    final applied = <String, DateTime>{};
+    for (final row in result.rows) {
+      applied[row['filename'] as String] = row['applied_at'] as DateTime;
+    }
+
+    return files.map((f) {
+      final name = f.uri.pathSegments.last;
       return MigrationStatus(
         filename: name,
-        applied: record != null,
-        appliedAt: record?['applied_at'] as DateTime?,
+        applied: applied.containsKey(name),
+        appliedAt: applied[name],
       );
     }).toList();
   }
 
-  /// Applies all pending migration files in order.
+  /// Applies all pending migrations in order.
   ///
-  /// If [dryRun] is true, prints the SQL that would be executed without
-  /// actually running it. Returns the list of applied (or would-be-applied)
-  /// filenames.
+  /// If [dryRun] is true, prints SQL to stdout without executing.
+  /// Returns the list of applied migration filenames.
   Future<List<String>> apply({bool dryRun = false}) async {
     await ensureTrackingTable();
 
     final files = _listMigrationFiles();
     if (files.isEmpty) return [];
 
-    final applied = await _getAppliedMigrations();
-    final pending = <File>[];
+    // Fetch already-applied migrations with checksums
+    final result = await _db.rawExecute(
+      'SELECT filename, checksum FROM _stanza_migrations ORDER BY filename',
+    );
+    final appliedChecksums = <String, String>{};
+    for (final row in result.rows) {
+      appliedChecksums[row['filename'] as String] = row['checksum'] as String;
+    }
 
-    // Verify checksums of already-applied files
+    // Verify checksums of applied migrations
     for (final file in files) {
-      final name = _filename(file);
-      final record = applied[name];
-      if (record != null) {
-        final currentChecksum = _checksum(file);
-        if (record['checksum'] != currentChecksum) {
-          throw StateError(
-            'Checksum mismatch for applied migration "$name". '
-            'Applied migrations must not be modified. '
-            'Expected: ${record['checksum']}, got: $currentChecksum',
+      final name = file.uri.pathSegments.last;
+      final existingChecksum = appliedChecksums[name];
+      if (existingChecksum != null) {
+        final content = file.readAsStringSync();
+        final actualChecksum = _checksum(content);
+        if (actualChecksum != existingChecksum) {
+          throw StanzaException(
+            'Checksum mismatch for applied migration $name. '
+            'The file has been modified after it was applied.',
           );
         }
-      } else {
-        pending.add(file);
       }
     }
 
-    if (pending.isEmpty) return [];
+    // Find and apply pending migrations
+    final applied = <String>[];
+    for (final file in files) {
+      final name = file.uri.pathSegments.last;
+      if (appliedChecksums.containsKey(name)) continue;
 
-    final appliedNames = <String>[];
-
-    for (final file in pending) {
-      final name = _filename(file);
       final content = file.readAsStringSync();
-      final checksum = _checksum(file);
       final statements = _extractStatements(content);
 
       if (dryRun) {
         // ignore: avoid_print
-        print('-- Would apply: $name');
+        print('-- Migration: $name');
         for (final stmt in statements) {
           // ignore: avoid_print
-          print(stmt);
+          print('$stmt;');
         }
+        // ignore: avoid_print
+        print('');
       } else {
-        // Apply each statement within a transaction
-        await _stanza.rawExecute('BEGIN');
-        try {
+        await _db.transaction((tx) async {
           for (final stmt in statements) {
-            await _stanza.rawExecute(stmt);
+            await tx.rawExecute(stmt);
           }
-
-          // Record in tracking table
-          await _stanza.rawExecute(
+          await tx.rawExecute(
             'INSERT INTO _stanza_migrations (filename, checksum) '
             'VALUES (@filename, @checksum)',
-            parameters: {'filename': name, 'checksum': checksum},
+            parameters: {
+              'filename': name,
+              'checksum': _checksum(content),
+            },
           );
-
-          await _stanza.rawExecute('COMMIT');
-        } catch (e) {
-          await _stanza.rawExecute('ROLLBACK');
-          rethrow;
-        }
+        });
       }
 
-      appliedNames.add(name);
+      applied.add(name);
     }
 
-    return appliedNames;
+    return applied;
   }
 
+  /// Lists `.sql` files in the migrations directory, sorted by name.
   List<File> _listMigrationFiles() {
-    final dir = Directory(migrationsDir);
+    final dir = Directory(_migrationsDir);
     if (!dir.existsSync()) return [];
 
     final files = dir
         .listSync()
         .whereType<File>()
         .where((f) => f.path.endsWith('.sql'))
-        .toList();
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
 
-    // Sort by filename (chronological due to timestamp prefix)
-    files.sort((a, b) => _filename(a).compareTo(_filename(b)));
     return files;
   }
 
-  Future<Map<String, Map<String, dynamic>>> _getAppliedMigrations() async {
-    final rows = await _stanza.rawExecute(
-      'SELECT filename, applied_at, checksum FROM _stanza_migrations '
-      'ORDER BY filename',
-    );
-
-    final result = <String, Map<String, dynamic>>{};
-    for (final row in rows) {
-      final map = row.toColumnMap();
-      result[map['filename'] as String] = map;
-    }
-    return result;
-  }
-
-  /// Extracts executable SQL statements from migration file content.
+  /// Extracts executable SQL statements from a migration file.
   ///
-  /// Strips comments, BEGIN/COMMIT wrappers, and empty lines.
-  List<String> _extractStatements(String content) {
-    final statements = <String>[];
+  /// Strips comments, removes BEGIN/COMMIT (runner manages its own transaction),
+  /// and splits on `;`.
+  static List<String> _extractStatements(String content) {
+    final lines = content.split('\n');
     final buf = StringBuffer();
 
-    for (var line in content.split('\n')) {
-      line = line.trim();
-
-      // Skip comments and empty lines
-      if (line.startsWith('--') || line.isEmpty) continue;
-
-      // Skip BEGIN/COMMIT — runner wraps in its own transaction
-      if (line.toUpperCase() == 'BEGIN;' || line.toUpperCase() == 'COMMIT;') {
-        continue;
-      }
-
-      buf.write('$line ');
-
-      if (line.endsWith(';')) {
-        final stmt = buf.toString().trim();
-        if (stmt.isNotEmpty && stmt != ';') {
-          statements.add(stmt);
-        }
-        buf.clear();
-      }
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('--')) continue;
+      if (trimmed.isEmpty) continue;
+      if (trimmed.toUpperCase() == 'BEGIN;') continue;
+      if (trimmed.toUpperCase() == 'COMMIT;') continue;
+      buf.write('$trimmed ');
     }
 
-    // Handle trailing statement without semicolon
-    final remaining = buf.toString().trim();
-    if (remaining.isNotEmpty) {
-      statements.add(remaining);
-    }
-
-    return statements;
+    return buf
+        .toString()
+        .split(';')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
-  String _filename(File file) => file.uri.pathSegments.last;
-
-  String _checksum(File file) {
-    final bytes = file.readAsBytesSync();
-    return sha256.convert(bytes).toString();
-  }
+  /// Computes SHA-256 checksum of migration file content.
+  static String _checksum(String content) =>
+      sha256.convert(utf8.encode(content)).toString();
 }

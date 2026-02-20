@@ -1,32 +1,24 @@
-import 'package:stanza/src/schema/column_type.dart';
-import 'package:stanza/src/schema/schema_column.dart';
-import 'package:stanza/src/schema/schema_constraint.dart';
-import 'package:stanza/src/schema/schema_table.dart';
-import 'package:stanza/src/schema/schema_diff.dart';
+import 'package:stanza/schema.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('SchemaDiff.diff', () {
-    test('new table produces CreateTable', () {
+    test('new table → CreateTable', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'id',
-            type: const ColumnType('serial'),
+            type: ColumnType('serial'),
             nullable: false,
             isPrimaryKey: true,
             isSerial: true,
           ),
-          SchemaColumn(
-            name: 'title',
-            type: const ColumnType('text'),
-            nullable: false,
-          ),
+          const SchemaColumn(name: 'name', type: ColumnType('text')),
         ],
         constraints: [
-          SchemaConstraint(
-            name: 'post_pkey',
+          const SchemaConstraint(
+            name: 'users_pkey',
             kind: ConstraintKind.primaryKey,
             columns: ['id'],
           ),
@@ -38,26 +30,14 @@ void main() {
       expect(ops.first, isA<CreateTable>());
     });
 
-    test('identical tables produce no ops', () {
+    test('identical tables → no ops', () {
       final table = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'id',
-            type: const ColumnType('integer'),
+            type: ColumnType('integer'),
             nullable: false,
-          ),
-          SchemaColumn(
-            name: 'title',
-            type: const ColumnType('text'),
-            nullable: false,
-          ),
-        ],
-        constraints: [
-          SchemaConstraint(
-            name: 'post_pkey',
-            kind: ConstraintKind.primaryKey,
-            columns: ['id'],
           ),
         ],
       );
@@ -66,63 +46,39 @@ void main() {
       expect(ops, isEmpty);
     });
 
-    test('new column produces AddColumn', () {
+    test('new column → AddColumn', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('text'),
-              nullable: false),
-          SchemaColumn(
-              name: 'body',
-              type: const ColumnType('text'),
-              nullable: true),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('text'),
-              nullable: false),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
         ],
       );
 
       final ops = SchemaDiff.diff(expected, actual);
       expect(ops, hasLength(1));
       expect(ops.first, isA<AddColumn>());
-      expect((ops.first as AddColumn).column.name, 'body');
+      final add = ops.first as AddColumn;
+      expect(add.column.name, 'email');
     });
 
-    test('type change produces AlterColumnType', () {
+    test('type change → AlterColumnType', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'data',
-              type: const ColumnType('jsonb'),
-              nullable: true),
+          const SchemaColumn(name: 'data', type: ColumnType('jsonb')),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'data',
-              type: const ColumnType('text'),
-              nullable: true),
+          const SchemaColumn(name: 'data', type: ColumnType('text')),
         ],
       );
 
@@ -132,26 +88,23 @@ void main() {
       expect((ops.first as AlterColumnType).newType, 'jsonb');
     });
 
-    test('serial and integer are equivalent (no type change)', () {
+    test('serial ≡ integer produces no type change', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'id',
-            type: const ColumnType('serial'),
-            nullable: false,
+            type: ColumnType('serial'),
             isSerial: true,
           ),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'id',
-            type: const ColumnType('integer'),
-            nullable: false,
+            type: ColumnType('integer'),
             isSerial: true,
           ),
         ],
@@ -161,24 +114,21 @@ void main() {
       expect(ops, isEmpty);
     });
 
-    test('nullability change produces AlterColumnNullability', () {
+    test('nullability change → AlterColumnNullability', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('text'),
-              nullable: false),
+          const SchemaColumn(
+            name: 'name',
+            type: ColumnType('text'),
+            nullable: false,
+          ),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('text'),
-              nullable: true),
+          const SchemaColumn(name: 'name', type: ColumnType('text')),
         ],
       );
 
@@ -188,27 +138,21 @@ void main() {
       expect((ops.first as AlterColumnNullability).nullable, isFalse);
     });
 
-    test('default value change produces AlterColumnDefault', () {
+    test('default change → AlterColumnDefault', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'status',
-            type: const ColumnType('text'),
-            nullable: false,
+            type: ColumnType('text'),
             defaultValue: "'active'",
           ),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-            name: 'status',
-            type: const ColumnType('text'),
-            nullable: false,
-          ),
+          const SchemaColumn(name: 'status', type: ColumnType('text')),
         ],
       );
 
@@ -218,64 +162,72 @@ void main() {
       expect((ops.first as AlterColumnDefault).newDefault, "'active'");
     });
 
-    test('removed column produces DropColumn (commented)', () {
+    test('serial column skips default diff', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(
+            name: 'id',
+            type: ColumnType('serial'),
+            isSerial: true,
+          ),
+        ],
+      );
+      final actual = SchemaTable(
+        name: 'users',
+        columns: [
+          const SchemaColumn(
+            name: 'id',
+            type: ColumnType('integer'),
+            isSerial: true,
+            defaultValue: "nextval('users_id_seq')",
+          ),
         ],
       );
 
-      final actual = SchemaTable(
-        name: 'post',
+      final ops = SchemaDiff.diff(expected, actual);
+      expect(ops, isEmpty);
+    });
+
+    test('removed column → DropColumn (commented)', () {
+      final expected = SchemaTable(
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
-          SchemaColumn(
-              name: 'old_field',
-              type: const ColumnType('text'),
-              nullable: true),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+        ],
+      );
+      final actual = SchemaTable(
+        name: 'users',
+        columns: [
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+          const SchemaColumn(name: 'old_col', type: ColumnType('text')),
         ],
       );
 
       final ops = SchemaDiff.diff(expected, actual);
       expect(ops, hasLength(1));
       expect(ops.first, isA<DropColumn>());
-      final sql = ops.first.toSql();
-      expect(sql, startsWith('-- SAFETY:'));
-      expect(sql, contains('old_field'));
+      expect(ops.first.toSql(), contains('-- SAFETY'));
     });
 
-    test('new constraint produces AddConstraint', () {
+    test('new constraint → AddConstraint', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
         constraints: [
-          SchemaConstraint(
-            name: 'post_pkey',
-            kind: ConstraintKind.primaryKey,
-            columns: ['id'],
+          const SchemaConstraint(
+            name: 'users_email_key',
+            kind: ConstraintKind.unique,
+            columns: ['email'],
           ),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
       );
 
@@ -284,30 +236,23 @@ void main() {
       expect(ops.first, isA<AddConstraint>());
     });
 
-    test('removed constraint produces DropConstraint', () {
+    test('removed constraint → DropConstraint', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
         constraints: [
-          SchemaConstraint(
-            name: 'post_old_idx',
+          const SchemaConstraint(
+            name: 'users_email_key',
             kind: ConstraintKind.unique,
-            columns: ['id'],
+            columns: ['email'],
           ),
         ],
       );
@@ -317,83 +262,45 @@ void main() {
       expect(ops.first, isA<DropConstraint>());
     });
 
-    test('multiple changes produce multiple ops', () {
+    test('multiple changes combined', () {
       final expected = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('varchar(255)'),
-              nullable: false),
-          SchemaColumn(
-              name: 'body',
-              type: const ColumnType('text'),
-              nullable: true),
-        ],
-        constraints: [
-          SchemaConstraint(
-            name: 'post_pkey',
-            kind: ConstraintKind.primaryKey,
-            columns: ['id'],
-          ),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
+          const SchemaColumn(name: 'name', type: ColumnType('varchar(50)')),
         ],
       );
-
       final actual = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
-          SchemaColumn(
-              name: 'title',
-              type: const ColumnType('text'),
-              nullable: true),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+          const SchemaColumn(name: 'email', type: ColumnType('varchar(100)')),
         ],
       );
 
       final ops = SchemaDiff.diff(expected, actual);
-      // AddColumn(body), AlterColumnType(title), AlterColumnNullability(title), AddConstraint(pkey)
-      expect(ops, hasLength(4));
-      expect(ops.whereType<AddColumn>(), hasLength(1));
-      expect(ops.whereType<AlterColumnType>(), hasLength(1));
-      expect(ops.whereType<AlterColumnNullability>(), hasLength(1));
-      expect(ops.whereType<AddConstraint>(), hasLength(1));
+      expect(ops, hasLength(2)); // type change + new column
+      expect(ops[0], isA<AlterColumnType>()); // email type changed
+      expect(ops[1], isA<AddColumn>()); // name is new
     });
   });
 
   group('SchemaDiffOp.toSql', () {
-    test('CreateTable generates valid SQL', () {
+    test('CreateTable generates full DDL', () {
       final table = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
+          const SchemaColumn(
             name: 'id',
-            type: const ColumnType('serial'),
-            nullable: false,
-            isPrimaryKey: true,
-            isSerial: true,
-          ),
-          SchemaColumn(
-            name: 'title',
-            type: const ColumnType('text'),
+            type: ColumnType('serial'),
             nullable: false,
           ),
-          SchemaColumn(
-            name: 'status',
-            type: const ColumnType('text'),
-            nullable: false,
-            defaultValue: "'draft'",
-          ),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
         constraints: [
-          SchemaConstraint(
-            name: 'post_pkey',
+          const SchemaConstraint(
+            name: 'users_pkey',
             kind: ConstraintKind.primaryKey,
             columns: ['id'],
           ),
@@ -401,146 +308,160 @@ void main() {
       );
 
       final sql = CreateTable(table).toSql();
-      expect(sql, contains('CREATE TABLE post'));
+      expect(sql, contains('CREATE TABLE users'));
       expect(sql, contains('id serial NOT NULL'));
-      expect(sql, contains('title text NOT NULL'));
-      expect(sql, contains("status text NOT NULL DEFAULT 'draft'"));
-      expect(sql, contains('CONSTRAINT post_pkey PRIMARY KEY (id)'));
+      expect(sql, contains('email text'));
+      expect(sql, contains('CONSTRAINT users_pkey PRIMARY KEY (id)'));
     });
 
-    test('AddColumn generates valid SQL', () {
-      final sql = AddColumn(
-        'post',
-        SchemaColumn(
-            name: 'body', type: const ColumnType('text'), nullable: true),
-      ).toSql();
-      expect(sql, equals('ALTER TABLE post ADD COLUMN body text;'));
+    test('AddColumn generates ALTER TABLE', () {
+      const col =
+          SchemaColumn(name: 'bio', type: ColumnType('text'), nullable: false);
+      expect(
+        const AddColumn('users', col).toSql(),
+        'ALTER TABLE users ADD COLUMN bio text NOT NULL;',
+      );
     });
 
-    test('AddColumn NOT NULL generates valid SQL', () {
-      final sql = AddColumn(
-        'post',
-        SchemaColumn(
-          name: 'title',
-          type: const ColumnType('text'),
-          nullable: false,
-          defaultValue: "''",
-        ),
-      ).toSql();
-      expect(sql,
-          equals("ALTER TABLE post ADD COLUMN title text NOT NULL DEFAULT '';"));
+    test('AddColumn with default', () {
+      const col = SchemaColumn(
+        name: 'status',
+        type: ColumnType('text'),
+        defaultValue: "'active'",
+      );
+      expect(
+        const AddColumn('users', col).toSql(),
+        "ALTER TABLE users ADD COLUMN status text DEFAULT 'active';",
+      );
     });
 
-    test('AlterColumnType generates valid SQL', () {
-      final sql = AlterColumnType('post', 'data', 'jsonb').toSql();
-      expect(sql, equals('ALTER TABLE post ALTER COLUMN data TYPE jsonb;'));
+    test('AlterColumnType', () {
+      expect(
+        const AlterColumnType('users', 'data', 'jsonb').toSql(),
+        'ALTER TABLE users ALTER COLUMN data TYPE jsonb;',
+      );
     });
 
     test('AlterColumnNullability SET NOT NULL', () {
-      final sql = AlterColumnNullability('post', 'title', false).toSql();
-      expect(sql,
-          equals('ALTER TABLE post ALTER COLUMN title SET NOT NULL;'));
+      expect(
+        const AlterColumnNullability('users', 'name', false).toSql(),
+        'ALTER TABLE users ALTER COLUMN name SET NOT NULL;',
+      );
     });
 
     test('AlterColumnNullability DROP NOT NULL', () {
-      final sql = AlterColumnNullability('post', 'title', true).toSql();
-      expect(sql,
-          equals('ALTER TABLE post ALTER COLUMN title DROP NOT NULL;'));
+      expect(
+        const AlterColumnNullability('users', 'name', true).toSql(),
+        'ALTER TABLE users ALTER COLUMN name DROP NOT NULL;',
+      );
     });
 
-    test('AlterColumnDefault SET DEFAULT', () {
-      final sql = AlterColumnDefault('post', 'status', "'active'").toSql();
-      expect(sql,
-          equals(
-              "ALTER TABLE post ALTER COLUMN status SET DEFAULT 'active';"));
+    test('AlterColumnDefault SET', () {
+      expect(
+        const AlterColumnDefault('users', 'status', "'active'").toSql(),
+        "ALTER TABLE users ALTER COLUMN status SET DEFAULT 'active';",
+      );
     });
 
-    test('AlterColumnDefault DROP DEFAULT', () {
-      final sql = AlterColumnDefault('post', 'status', null).toSql();
-      expect(sql,
-          equals('ALTER TABLE post ALTER COLUMN status DROP DEFAULT;'));
+    test('AlterColumnDefault DROP', () {
+      expect(
+        const AlterColumnDefault('users', 'status', null).toSql(),
+        'ALTER TABLE users ALTER COLUMN status DROP DEFAULT;',
+      );
+    });
+
+    test('DropColumn is commented for safety', () {
+      final sql = const DropColumn('users', 'old_col').toSql();
+      expect(sql, startsWith('-- SAFETY'));
+      expect(sql, contains('DROP COLUMN old_col'));
+    });
+
+    test('DropConstraint', () {
+      expect(
+        const DropConstraint('users', 'users_email_key').toSql(),
+        'ALTER TABLE users DROP CONSTRAINT users_email_key;',
+      );
     });
 
     test('AddConstraint PK', () {
-      final sql = AddConstraint(
-        'post',
-        SchemaConstraint(
-          name: 'post_pkey',
-          kind: ConstraintKind.primaryKey,
-          columns: ['id'],
-        ),
-      ).toSql();
-      expect(sql, contains('ADD CONSTRAINT post_pkey PRIMARY KEY (id)'));
+      expect(
+        const AddConstraint(
+          'users',
+          SchemaConstraint(
+            name: 'users_pkey',
+            kind: ConstraintKind.primaryKey,
+            columns: ['id'],
+          ),
+        ).toSql(),
+        'ALTER TABLE users ADD CONSTRAINT users_pkey PRIMARY KEY (id);',
+      );
     });
 
     test('AddConstraint UNIQUE', () {
-      final sql = AddConstraint(
-        'post',
-        SchemaConstraint(
-          name: 'post_email_key',
-          kind: ConstraintKind.unique,
-          columns: ['email'],
-        ),
-      ).toSql();
-      expect(sql, contains('UNIQUE (email)'));
+      expect(
+        const AddConstraint(
+          'users',
+          SchemaConstraint(
+            name: 'users_email_key',
+            kind: ConstraintKind.unique,
+            columns: ['email'],
+          ),
+        ).toSql(),
+        'ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email);',
+      );
     });
 
-    test('AddConstraint FK with ON DELETE', () {
-      final sql = AddConstraint(
-        'post',
+    test('AddConstraint FK', () {
+      final sql = const AddConstraint(
+        'posts',
         SchemaConstraint(
-          name: 'post_author_id_fkey',
+          name: 'posts_author_id_fkey',
           kind: ConstraintKind.foreignKey,
           columns: ['author_id'],
-          referencedTable: 'author',
+          referencedTable: 'users',
           referencedColumn: 'id',
           onDelete: 'CASCADE',
         ),
       ).toSql();
       expect(sql, contains('FOREIGN KEY (author_id)'));
-      expect(sql, contains('REFERENCES author (id)'));
+      expect(sql, contains('REFERENCES users (id)'));
       expect(sql, contains('ON DELETE CASCADE'));
     });
 
-    test('DropColumn is commented out', () {
-      final sql = DropColumn('post', 'old_col').toSql();
-      expect(sql, startsWith('-- SAFETY:'));
-      expect(sql, contains('DROP COLUMN old_col'));
-    });
-
-    test('DropConstraint generates valid SQL', () {
-      final sql = DropConstraint('post', 'post_old_idx').toSql();
-      expect(sql,
-          equals('ALTER TABLE post DROP CONSTRAINT post_old_idx;'));
+    test('AddConstraint FK without onDelete', () {
+      final sql = const AddConstraint(
+        'posts',
+        SchemaConstraint(
+          name: 'posts_author_id_fkey',
+          kind: ConstraintKind.foreignKey,
+          columns: ['author_id'],
+          referencedTable: 'users',
+          referencedColumn: 'id',
+        ),
+      ).toSql();
+      expect(sql, contains('FOREIGN KEY (author_id)'));
+      expect(sql, isNot(contains('ON DELETE')));
     });
   });
 
   group('SchemaTable helpers', () {
-    test('columnByName finds existing column', () {
+    test('columnByName finds column', () {
       final table = SchemaTable(
-        name: 'post',
+        name: 'users',
         columns: [
-          SchemaColumn(
-              name: 'id',
-              type: const ColumnType('integer'),
-              nullable: false),
+          const SchemaColumn(name: 'id', type: ColumnType('integer')),
+          const SchemaColumn(name: 'email', type: ColumnType('text')),
         ],
       );
-      expect(table.columnByName('id'), isNotNull);
-      expect(table.columnByName('id')!.name, 'id');
-    });
-
-    test('columnByName returns null for missing column', () {
-      final table = SchemaTable(name: 'post', columns: []);
+      expect(table.columnByName('email')?.name, 'email');
       expect(table.columnByName('missing'), isNull);
     });
 
-    test('constraint name conventions', () {
-      final table = SchemaTable(name: 'post', columns: []);
-      expect(table.primaryKeyConstraintName, 'post_pkey');
-      expect(table.uniqueConstraintName('email'), 'post_email_key');
-      expect(table.foreignKeyConstraintName('author_id'),
-          'post_author_id_fkey');
+    test('constraint naming conventions', () {
+      final table = SchemaTable(name: 'users', columns: []);
+      expect(table.primaryKeyConstraintName, 'users_pkey');
+      expect(table.uniqueConstraintName('email'), 'users_email_key');
+      expect(table.foreignKeyConstraintName('post_id'), 'users_post_id_fkey');
     });
   });
 }

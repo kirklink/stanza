@@ -3,22 +3,24 @@ homepage: "https://github.com/kirklink/stanza"
 repository: "https://github.com/kirklink/stanza"
 issue_tracker: "https://github.com/kirklink/stanza/issues"
 description: >-
-  A type-safe PostgreSQL query builder for Dart with code generation.
-  Fluent API for SELECT, INSERT, UPDATE, DELETE with parameterized queries,
-  JOINs, RETURNING, aggregates, and typed result mapping.
-version: 0.1.0
+  AI-first PostgreSQL ORM for Dart with code generation.
+  Type-safe query builder, typed columns, immutable entities,
+  and automatic schema migrations.
+version: 2.0.0-dev.1
 topics:
   - postgresql
   - query-builder
   - database
   - sql
   - codegen
+  - orm
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 dependencies:
   crypto: ^3.0.0
   path: ^1.9.0
   postgres: ^3.4.0
+  recase: ^4.1.0
 dev_dependencies:
   build_runner: ^2.4.0
   lints: ^4.0.0

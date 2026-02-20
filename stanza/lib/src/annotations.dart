@@ -1,93 +1,112 @@
-/// The annotation to convert a Dart class into a Stanza database table interface.
+/// Marks a class as a database entity.
 ///
-/// [name]: rename the Stanza table to correspond with a database table name.
-/// [snakeCase]: automatically convert the table name and field names to snake_case, unless
-/// provided explicitly with a 'name' parameter.
-/// [readOnly]: Throws a StanzaEntityException if tried to write to the database.
-class StanzaEntity {
+/// The class must have a const constructor with named parameters
+/// matching all non-ignored fields.
+///
+/// ```dart
+/// @Entity()
+/// class User {
+///   @PrimaryKey(autoIncrement: true)
+///   final int id;
+///   @Field(unique: true)
+///   final String email;
+///   const User({required this.id, required this.email});
+/// }
+/// ```
+class Entity {
+  /// Override the table name. Defaults to snake_case of the class name.
   final String? name;
-  final bool snakeCase;
-  final bool readOnly;
-  const StanzaEntity({this.name, this.snakeCase = false, this.readOnly = false});
+
+  const Entity({this.name});
 }
 
-/// The annotation to enhance a Dart class property into a Stanza database field interface.
+/// Configures a field's database column mapping.
 ///
-/// [StanzaField] is not required and only necessary if additional annotations are required
-/// on the field. Otherwise, Dart class properties of a [StanzaEntity] are automatically converted
-/// to fields.
+/// Fields without `@Field` are auto-mapped using Dart type inference.
+/// Use this annotation to customize column behavior.
 ///
-/// [name]: sets an explicit name on a field to correspond with a database field name.
-/// [readOnly]: will read this field from the database but not write it to the database. Useful
-/// for things like id's or timestamps.
-/// [ignore]: will ignore this field completely; it will not be in the table fields.
+/// ```dart
+/// @Field(length: 100, unique: true)
+/// final String email;
 ///
-/// Schema management parameters (used by stanza schema diffing/migrations):
-/// [type]: Override the inferred PostgreSQL type (e.g. 'varchar(255)', 'jsonb', 'uuid').
-///   If null, inferred from Dart type: int→integer, String→text, bool→boolean,
-///   DateTime→timestamptz, double→double precision.
-/// [nullable]: Whether the column allows NULL. If null, inferred from the Dart type's
-///   `?` suffix. Explicit value overrides Dart nullability inference.
-/// [unique]: Add a UNIQUE constraint on this column.
-/// [defaultValue]: SQL default expression as a string (e.g. `'NOW()'`, `"'active'"`, `'0'`).
-///   Written verbatim into the DEFAULT clause — must be valid SQL.
-class StanzaField {
+/// @Field(defaultValue: 'now()')
+/// final DateTime createdAt;
+///
+/// @Field(ignore: true)
+/// final String cachedValue;
+/// ```
+class Field {
+  /// Override the column name. Defaults to snake_case of the field name.
   final String? name;
-  final bool readOnly;
-  final bool ignore;
-  final String? type;
-  final bool? nullable;
+
+  /// Maximum length for VARCHAR columns.
+  final int? length;
+
+  /// Whether this column has a UNIQUE constraint.
   final bool unique;
+
+  /// SQL DEFAULT expression (e.g. `'now()'`, `"'active'"`, `'0'`).
   final String? defaultValue;
-  const StanzaField({
+
+  /// Override the PostgreSQL type (e.g. `'jsonb'`, `'uuid'`, `'text[]'`).
+  final String? type;
+
+  /// Skip this field entirely — no database column generated.
+  final bool ignore;
+
+  const Field({
     this.name,
-    this.readOnly = false,
-    this.ignore = false,
-    this.type,
-    this.nullable,
+    this.length,
     this.unique = false,
     this.defaultValue,
+    this.type,
+    this.ignore = false,
   });
 }
 
-/// Marks a field as the primary key for the table.
+/// Marks a field as the primary key.
 ///
-/// [serial]: When true (default), the column uses SERIAL/BIGSERIAL for
-/// auto-incrementing. When false, the column uses its plain Dart-inferred type.
-///
-/// ```dart
-/// @StanzaEntity()
-/// class Post {
-///   @PrimaryKey()
-///   late int id;
-/// }
-/// ```
+/// Only one field per entity may be annotated with `@PrimaryKey`.
 class PrimaryKey {
-  final bool serial;
-  const PrimaryKey({this.serial = true});
+  /// Whether the primary key auto-increments (SERIAL/BIGSERIAL).
+  final bool autoIncrement;
+
+  const PrimaryKey({this.autoIncrement = true});
 }
 
-/// Declares a belongs-to relationship on a foreign key field.
-///
-/// Place on the foreign key field (e.g., `ownerId`) to indicate it references
-/// another [StanzaEntity]. The code generator will produce typed join helpers
-/// and result extraction methods.
+/// Marks a field as a foreign key reference to another entity.
 ///
 /// ```dart
-/// @StanzaEntity(name: 'mammal', snakeCase: true)
-/// class Animal {
-///   @BelongsTo(Owner)
-///   late int ownerId;
+/// @References(User, onDelete: 'CASCADE')
+/// final int authorId;
+/// ```
+class References {
+  /// The referenced entity class.
+  final Type entity;
+
+  /// The column on the referenced table. Defaults to `'id'`.
+  final String? column;
+
+  /// Referential action on delete: `'CASCADE'`, `'SET NULL'`, `'RESTRICT'`.
+  final String? onDelete;
+
+  const References(this.entity, {this.column, this.onDelete});
+}
+
+/// Marks a class as the database entry point.
+///
+/// Lists all entity types that belong to this database.
+/// The code generator produces typed `TableAccessor` fields for each entity.
+///
+/// ```dart
+/// @Database(entities: [User, Post])
+/// class AppDatabase extends $AppDatabase {
+///   AppDatabase(Stanza connection) : super(connection);
 /// }
 /// ```
-///
-/// [parent]: The type of the related entity (must be annotated with [StanzaEntity]).
-/// [targetKey]: The column name on the parent table to join against. Defaults to 'id'.
-/// [onDelete]: Referential action on delete (e.g. 'CASCADE', 'SET NULL', 'RESTRICT').
-///   Used by schema management to generate FK constraints. If null, no ON DELETE clause.
-class BelongsTo {
-  final Type parent;
-  final String targetKey;
-  final String? onDelete;
-  const BelongsTo(this.parent, {this.targetKey = 'id', this.onDelete});
+class Database {
+  /// All entity types managed by this database.
+  final List<Type> entities;
+
+  const Database({required this.entities});
 }

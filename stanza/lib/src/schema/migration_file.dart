@@ -1,14 +1,12 @@
 import 'schema_diff.dart';
 
-/// Generates timestamped migration SQL files from a list of [SchemaDiffOp]s.
+/// Generates timestamped migration SQL files from schema diff operations.
 class MigrationFileWriter {
-  const MigrationFileWriter();
-
-  /// Generates a migration filename based on the current timestamp.
+  /// Generates a migration filename from a timestamp.
   ///
   /// Format: `YYYYMMDD_HHMMSS.sql`
-  String generateFilename({DateTime? now}) {
-    final ts = now ?? DateTime.now();
+  static String generateFilename({DateTime? now}) {
+    final ts = now ?? DateTime.now().toUtc();
     final y = ts.year.toString().padLeft(4, '0');
     final m = ts.month.toString().padLeft(2, '0');
     final d = ts.day.toString().padLeft(2, '0');
@@ -18,27 +16,30 @@ class MigrationFileWriter {
     return '$y$m${d}_$h$min$s.sql';
   }
 
-  /// Generates the full SQL content for a migration file.
+  /// Generates the full SQL migration file content.
   ///
-  /// Wraps the SQL in a transaction (`BEGIN`/`COMMIT`) with a header comment.
-  /// `SET NOT NULL` without a corresponding default value gets a warning comment.
-  String generate(List<SchemaDiffOp> ops) {
+  /// Wraps operations in BEGIN/COMMIT and includes header comments.
+  static String generate(List<SchemaDiffOp> ops) {
     final buf = StringBuffer();
+    final now = DateTime.now().toUtc().toIso8601String();
+
     buf.writeln('-- Stanza migration');
-    buf.writeln('-- Generated at ${DateTime.now().toUtc().toIso8601String()}');
+    buf.writeln('-- Generated at $now');
     buf.writeln();
     buf.writeln('BEGIN;');
     buf.writeln();
 
+    // Add warnings for SET NOT NULL operations
     for (final op in ops) {
-      // Add warning comment for SET NOT NULL without a default
       if (op is AlterColumnNullability && !op.nullable) {
         buf.writeln(
-            '-- WARNING: Setting NOT NULL on existing column "${op.columnName}".');
-        buf.writeln(
-            '-- Ensure all existing rows have a value or add a DEFAULT first.');
+          '-- WARNING: Setting NOT NULL on ${op.tableName}.${op.columnName}. '
+          'Ensure existing rows have values or add a DEFAULT first.',
+        );
       }
+    }
 
+    for (final op in ops) {
       buf.writeln(op.toSql());
       buf.writeln();
     }

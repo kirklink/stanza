@@ -1,130 +1,144 @@
-import 'package:stanza/src/schema/column_type.dart';
+import 'package:stanza/schema.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('ColumnType.fromDartType', () {
-    test('int maps to integer', () {
+  group('fromDartType', () {
+    test('int → integer', () {
       expect(ColumnType.fromDartType('int').value, 'integer');
     });
 
-    test('int? maps to integer', () {
-      expect(ColumnType.fromDartType('int?').value, 'integer');
-    });
-
-    test('String maps to text', () {
+    test('String → text', () {
       expect(ColumnType.fromDartType('String').value, 'text');
     });
 
-    test('bool maps to boolean', () {
+    test('bool → boolean', () {
       expect(ColumnType.fromDartType('bool').value, 'boolean');
     });
 
-    test('double maps to double precision', () {
+    test('double → double precision', () {
       expect(ColumnType.fromDartType('double').value, 'double precision');
     });
 
-    test('DateTime maps to timestamptz', () {
+    test('DateTime → timestamptz', () {
       expect(ColumnType.fromDartType('DateTime').value, 'timestamptz');
     });
 
-    test('serial overrides Dart type', () {
-      expect(ColumnType.fromDartType('int', serial: true).value, 'serial');
+    test('nullable types strip ?', () {
+      expect(ColumnType.fromDartType('int?').value, 'integer');
+      expect(ColumnType.fromDartType('String?').value, 'text');
     });
 
-    test('unknown type defaults to text', () {
+    test('unknown type → text', () {
       expect(ColumnType.fromDartType('CustomClass').value, 'text');
+    });
+
+    test('serial flag overrides', () {
+      expect(ColumnType.fromDartType('int', serial: true).value, 'serial');
     });
   });
 
-  group('ColumnType.fromUdtName', () {
-    test('int4 maps to integer', () {
+  group('fromUdtName', () {
+    test('int4 → integer', () {
       expect(ColumnType.fromUdtName('int4').value, 'integer');
     });
 
-    test('int8 maps to bigint', () {
+    test('int2 → smallint', () {
+      expect(ColumnType.fromUdtName('int2').value, 'smallint');
+    });
+
+    test('int8 → bigint', () {
       expect(ColumnType.fromUdtName('int8').value, 'bigint');
     });
 
-    test('float8 maps to double precision', () {
+    test('float4 → real', () {
+      expect(ColumnType.fromUdtName('float4').value, 'real');
+    });
+
+    test('float8 → double precision', () {
       expect(ColumnType.fromUdtName('float8').value, 'double precision');
     });
 
-    test('bool maps to boolean', () {
+    test('bool → boolean', () {
       expect(ColumnType.fromUdtName('bool').value, 'boolean');
     });
 
     test('varchar with length', () {
       expect(
-          ColumnType.fromUdtName('varchar', charMaxLength: '255').value,
-          'varchar(255)');
+        ColumnType.fromUdtName('varchar', charMaxLength: '100').value,
+        'varchar(100)',
+      );
     });
 
     test('varchar without length', () {
       expect(ColumnType.fromUdtName('varchar').value, 'varchar');
     });
 
-    test('timestamptz passes through', () {
+    test('pass-through types', () {
+      expect(ColumnType.fromUdtName('text').value, 'text');
       expect(ColumnType.fromUdtName('timestamptz').value, 'timestamptz');
-    });
-
-    test('jsonb passes through', () {
       expect(ColumnType.fromUdtName('jsonb').value, 'jsonb');
-    });
-
-    test('uuid passes through', () {
       expect(ColumnType.fromUdtName('uuid').value, 'uuid');
+      expect(ColumnType.fromUdtName('bytea').value, 'bytea');
     });
 
-    test('unknown udt passes through', () {
-      expect(ColumnType.fromUdtName('citext').value, 'citext');
+    test('unknown passes through', () {
+      expect(ColumnType.fromUdtName('custom_type').value, 'custom_type');
     });
   });
 
-  group('ColumnType.isEquivalentTo', () {
+  group('isEquivalentTo', () {
     test('same type is equivalent', () {
       expect(
-          const ColumnType('integer')
-              .isEquivalentTo(const ColumnType('integer')),
-          isTrue);
+        const ColumnType('integer').isEquivalentTo(const ColumnType('integer')),
+        isTrue,
+      );
     });
 
-    test('serial is equivalent to integer', () {
+    test('serial ≡ integer', () {
       expect(
-          const ColumnType('serial')
-              .isEquivalentTo(const ColumnType('integer')),
-          isTrue);
+        const ColumnType('serial').isEquivalentTo(const ColumnType('integer')),
+        isTrue,
+      );
+      expect(
+        const ColumnType('integer').isEquivalentTo(const ColumnType('serial')),
+        isTrue,
+      );
     });
 
-    test('integer is equivalent to serial', () {
+    test('bigserial ≡ bigint', () {
       expect(
-          const ColumnType('integer')
-              .isEquivalentTo(const ColumnType('serial')),
-          isTrue);
+        const ColumnType('bigserial')
+            .isEquivalentTo(const ColumnType('bigint')),
+        isTrue,
+      );
     });
 
-    test('bigserial is equivalent to bigint', () {
+    test('smallserial ≡ smallint', () {
       expect(
-          const ColumnType('bigserial')
-              .isEquivalentTo(const ColumnType('bigint')),
-          isTrue);
+        const ColumnType('smallserial')
+            .isEquivalentTo(const ColumnType('smallint')),
+        isTrue,
+      );
     });
 
-    test('text is not equivalent to integer', () {
+    test('different types are not equivalent', () {
       expect(
-          const ColumnType('text')
-              .isEquivalentTo(const ColumnType('integer')),
-          isFalse);
+        const ColumnType('integer').isEquivalentTo(const ColumnType('text')),
+        isFalse,
+      );
     });
   });
 
-  group('ColumnType equality', () {
-    test('equal types', () {
-      expect(const ColumnType('text'), equals(const ColumnType('text')));
+  group('equality', () {
+    test('same value are equal', () {
+      expect(const ColumnType('integer'), equals(const ColumnType('integer')));
     });
 
-    test('different types', () {
-      expect(const ColumnType('text'),
-          isNot(equals(const ColumnType('integer'))));
+    test('different values are not equal', () {
+      expect(
+        const ColumnType('integer'),
+        isNot(equals(const ColumnType('text'))),
+      );
     });
   });
 }

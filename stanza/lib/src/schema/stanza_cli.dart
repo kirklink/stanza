@@ -5,60 +5,31 @@ import '../table.dart';
 import 'schema_diff.dart';
 import 'schema_manager.dart';
 
-/// A reusable CLI helper for schema management commands.
+/// CLI helper for schema management commands.
 ///
-/// Users create a minimal `bin/migrate.dart` script in their project
-/// that passes their tables and database URL, then delegates to this class:
-///
+/// Usage in a project's `bin/migrate.dart`:
 /// ```dart
-/// import 'package:stanza/stanza.dart';
-/// import 'package:stanza/schema.dart';
-/// import 'package:my_app/models.dart';
-///
 /// void main(List<String> args) => StanzaCli.run(
 ///   args,
 ///   databaseUrl: Platform.environment['DATABASE_URL']!,
-///   tables: [Owner.$table, Animal.$table],
+///   tables: [userTable, postTable],
 /// );
 /// ```
-///
-/// Then run with:
-/// ```bash
-/// dart run bin/migrate.dart status
-/// dart run bin/migrate.dart diff
-/// dart run bin/migrate.dart generate
-/// dart run bin/migrate.dart apply
-/// dart run bin/migrate.dart apply --dry-run
-/// ```
 class StanzaCli {
-  final SchemaManager _manager;
-
-  StanzaCli._(this._manager);
-
-  /// Entry point — parses args, runs the command, exits.
+  /// Runs the CLI with the given arguments.
   ///
-  /// Provide either [databaseUrl] or [stanza] (not both).
-  /// If [databaseUrl] is given, a connection is created and closed automatically.
+  /// Provide either [databaseUrl] or [stanza], not both.
   static Future<void> run(
     List<String> args, {
     String? databaseUrl,
     Stanza? stanza,
-    required List<Table> tables,
+    required List<TableDescriptor> tables,
     String migrationsDir = 'migrations',
   }) async {
-    if (databaseUrl == null && stanza == null) {
-      _printError('Either databaseUrl or stanza instance must be provided.');
-      _printUsage();
-      exit(1);
-    }
-
-    final command = args.firstOrNull ?? 'help';
-    final flags = args.skip(1).toSet();
-
-    if (command == 'help' || command == '--help' || command == '-h') {
-      _printUsage();
-      return;
-    }
+    assert(
+      (databaseUrl != null) ^ (stanza != null),
+      'Provide either databaseUrl or stanza, not both',
+    );
 
     final db = stanza ?? Stanza.url(databaseUrl!);
     final manager = SchemaManager(
@@ -66,151 +37,132 @@ class StanzaCli {
       tables: tables,
       migrationsDir: migrationsDir,
     );
-    final cli = StanzaCli._(manager);
 
     try {
+      final command = args.isNotEmpty ? args.first : 'help';
+
       switch (command) {
         case 'status':
-          await cli._status();
+          await _status(manager);
         case 'diff':
-          await cli._diff();
+          await _diff(manager);
         case 'generate':
-          await cli._generate();
+          await _generate(manager);
         case 'apply':
-          await cli._apply(dryRun: flags.contains('--dry-run'));
+          final dryRun = args.contains('--dry-run');
+          await _apply(manager, dryRun: dryRun);
+        case 'help':
+          _help();
         default:
-          _printError('Unknown command: $command');
-          _printUsage();
+          stderr.writeln('Unknown command: $command');
+          _help();
           exit(1);
       }
     } finally {
-      if (stanza == null) {
-        await db.close();
-      }
+      if (stanza == null) await db.close();
     }
   }
 
-  Future<void> _status() async {
-    final statuses = await _manager.status();
+  static Future<void> _status(SchemaManager manager) async {
+    final statuses = await manager.status();
     if (statuses.isEmpty) {
-      stdout.writeln('No migration files found.');
+      // ignore: avoid_print
+      print('No migrations found.');
       return;
     }
-
-    stdout.writeln('Migration status:');
-    stdout.writeln('');
     for (final s in statuses) {
-      final icon = s.applied ? '[applied]' : '[pending] ';
-      final time = s.appliedAt != null ? '  (${s.appliedAt})' : '';
-      stdout.writeln('  $icon ${s.filename}$time');
+      final tag = s.applied ? 'applied' : 'pending';
+      final ts = s.appliedAt != null ? '  (${s.appliedAt})' : '';
+      // ignore: avoid_print
+      print('[$tag] ${s.filename}$ts');
     }
-    stdout.writeln('');
-
-    final pending = statuses.where((s) => !s.applied).length;
-    final applied = statuses.where((s) => s.applied).length;
-    stdout.writeln('$applied applied, $pending pending.');
   }
 
-  Future<void> _diff() async {
-    final ops = await _manager.diff();
+  static Future<void> _diff(SchemaManager manager) async {
+    final ops = await manager.diff();
     if (ops.isEmpty) {
-      stdout.writeln('Schema is up to date. No changes needed.');
+      // ignore: avoid_print
+      print('Schema is up-to-date.');
       return;
     }
-
-    stdout.writeln('Schema changes detected (${ops.length} operations):');
-    stdout.writeln('');
+    // ignore: avoid_print
+    print('Changes detected:');
     for (final op in ops) {
-      stdout.writeln('  ${_describeOp(op)}');
+      // ignore: avoid_print
+      print('  ${_describeOp(op)}');
     }
-    stdout.writeln('');
-    stdout.writeln('Run "generate" to create a migration file.');
   }
 
-  Future<void> _generate() async {
-    final path = await _manager.generate();
+  static Future<void> _generate(SchemaManager manager) async {
+    final path = await manager.generate();
     if (path == null) {
-      stdout.writeln('Schema is up to date. Nothing to generate.');
+      // ignore: avoid_print
+      print('Schema is up-to-date. No migration generated.');
       return;
     }
-    stdout.writeln('Generated migration: $path');
+    // ignore: avoid_print
+    print('Generated migration: $path');
   }
 
-  Future<void> _apply({bool dryRun = false}) async {
-    if (dryRun) {
-      stdout.writeln('Dry run — no changes will be applied:');
-      stdout.writeln('');
-    }
-
-    final applied = await _manager.apply(dryRun: dryRun);
+  static Future<void> _apply(
+    SchemaManager manager, {
+    required bool dryRun,
+  }) async {
+    final applied = await manager.apply(dryRun: dryRun);
     if (applied.isEmpty) {
-      stdout.writeln('No pending migrations to apply.');
+      // ignore: avoid_print
+      print('No pending migrations.');
       return;
     }
-
-    if (dryRun) {
-      stdout.writeln('');
-      stdout.writeln('${applied.length} migration(s) would be applied.');
-    } else {
-      stdout.writeln('Applied ${applied.length} migration(s):');
-      for (final name in applied) {
-        stdout.writeln('  $name');
-      }
+    final prefix = dryRun ? 'Would apply' : 'Applied';
+    for (final name in applied) {
+      // ignore: avoid_print
+      print('$prefix: $name');
     }
   }
 
-  static String _describeOp(SchemaDiffOp op) {
-    return switch (op) {
-      CreateTable(table: final t) => 'CREATE TABLE ${t.name}',
-      AddColumn(tableName: final t, column: final c) =>
-        'ADD COLUMN $t.${c.name} (${c.type})',
-      AlterColumnType(
-        tableName: final t,
-        columnName: final c,
-        newType: final nt
-      ) =>
-        'ALTER COLUMN $t.$c TYPE $nt',
-      AlterColumnNullability(
-        tableName: final t,
-        columnName: final c,
-        nullable: final n
-      ) =>
-        n ? 'ALTER COLUMN $t.$c DROP NOT NULL' : 'ALTER COLUMN $t.$c SET NOT NULL',
-      AlterColumnDefault(
-        tableName: final t,
-        columnName: final c,
-        newDefault: final d
-      ) =>
-        d != null
-            ? 'ALTER COLUMN $t.$c SET DEFAULT $d'
-            : 'ALTER COLUMN $t.$c DROP DEFAULT',
-      AddConstraint(tableName: final t, constraint: final c) =>
-        'ADD CONSTRAINT ${c.name} on $t (${c.kind.name})',
-      DropColumn(tableName: final t, columnName: final c) =>
-        'DROP COLUMN $t.$c (commented out — review manually)',
-      DropConstraint(tableName: final t, constraintName: final c) =>
-        'DROP CONSTRAINT $c on $t',
-    };
+  static void _help() {
+    // ignore: avoid_print
+    print('''
+Stanza Migration CLI
+
+Commands:
+  status      Show applied and pending migrations
+  diff        Show schema changes (code vs database)
+  generate    Generate a migration file from the diff
+  apply       Apply all pending migrations
+  apply --dry-run  Show SQL without executing
+  help        Show this help message
+
+Usage:
+  dart run bin/migrate.dart <command>''');
   }
 
-  static void _printError(String message) {
-    stderr.writeln('Error: $message');
-    stderr.writeln('');
-  }
-
-  static void _printUsage() {
-    stdout.writeln('Stanza Schema Management');
-    stdout.writeln('');
-    stdout.writeln('Usage: dart run bin/migrate.dart <command> [options]');
-    stdout.writeln('');
-    stdout.writeln('Commands:');
-    stdout.writeln('  status     Show applied and pending migrations');
-    stdout.writeln('  diff       Show schema differences (code vs database)');
-    stdout.writeln('  generate   Generate a migration .sql file from the diff');
-    stdout.writeln('  apply      Apply all pending migration files');
-    stdout.writeln('  help       Show this help message');
-    stdout.writeln('');
-    stdout.writeln('Options:');
-    stdout.writeln('  --dry-run  (apply only) Print SQL without executing');
-  }
+  static String _describeOp(SchemaDiffOp op) => switch (op) {
+        CreateTable(:final table) => 'CREATE TABLE ${table.name}',
+        AddColumn(:final tableName, :final column) =>
+          'ADD COLUMN $tableName.${column.name} (${column.type.value})',
+        AlterColumnType(:final tableName, :final columnName, :final newType) =>
+          'ALTER COLUMN $tableName.$columnName TYPE $newType',
+        AlterColumnNullability(
+          :final tableName,
+          :final columnName,
+          :final nullable,
+        ) =>
+          'ALTER COLUMN $tableName.$columnName ${nullable ? "DROP NOT NULL" : "SET NOT NULL"}',
+        AlterColumnDefault(
+          :final tableName,
+          :final columnName,
+          :final newDefault,
+        ) =>
+          newDefault != null
+              ? 'ALTER COLUMN $tableName.$columnName SET DEFAULT $newDefault'
+              : 'ALTER COLUMN $tableName.$columnName DROP DEFAULT',
+        AddConstraint(:final tableName, :final constraint) =>
+          'ADD CONSTRAINT ${constraint.name} on $tableName',
+        DropColumn(:final tableName, :final columnName) =>
+          'DROP COLUMN $tableName.$columnName (commented for safety)',
+        DropConstraint(:final tableName, :final constraintName) =>
+          'DROP CONSTRAINT $constraintName on $tableName',
+      };
 }

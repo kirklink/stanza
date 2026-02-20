@@ -1,10 +1,17 @@
 import 'schema_column.dart';
 import 'schema_constraint.dart';
 
-/// Represents a full database table schema (columns + constraints).
+/// Represents a complete database table schema.
+///
+/// Used for both expected schema (from code) and actual schema (from introspection).
 class SchemaTable {
+  /// The table name.
   final String name;
+
+  /// All columns in the table.
   final List<SchemaColumn> columns;
+
+  /// All constraints (PK, unique, FK).
   final List<SchemaConstraint> constraints;
 
   const SchemaTable({
@@ -13,7 +20,7 @@ class SchemaTable {
     this.constraints = const [],
   });
 
-  /// Finds a column by name, or returns null.
+  /// Finds a column by name, or null if not found.
   SchemaColumn? columnByName(String name) {
     for (final col in columns) {
       if (col.name == name) return col;
@@ -21,16 +28,14 @@ class SchemaTable {
     return null;
   }
 
-  /// Conventional PK constraint name: `<table>_pkey`.
+  /// Conventional primary key constraint name.
   String get primaryKeyConstraintName => '${name}_pkey';
 
-  /// Conventional unique constraint name: `<table>_<col>_key`.
-  String uniqueConstraintName(String col) => '${name}_${col}_key';
+  /// Conventional unique constraint name for a column.
+  String uniqueConstraintName(String columnName) =>
+      '${name}_${columnName}_key';
 
-  /// Conventional FK constraint name: `<table>_<col>_fkey`.
-  String foreignKeyConstraintName(String col) => '${name}_${col}_fkey';
-
-  @override
-  String toString() =>
-      'SchemaTable($name, ${columns.length} columns, ${constraints.length} constraints)';
+  /// Conventional foreign key constraint name for a column.
+  String foreignKeyConstraintName(String columnName) =>
+      '${name}_${columnName}_fkey';
 }

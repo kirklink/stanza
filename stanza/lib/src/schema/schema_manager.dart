@@ -9,61 +9,48 @@ import 'schema_constraint.dart';
 import 'schema_diff.dart';
 import 'schema_table.dart';
 
-/// Orchestrates schema diffing, migration file generation, and migration
-/// application for a set of Stanza tables.
+/// Orchestrates schema management: diff, generate, and apply migrations.
 ///
-/// ```dart
-/// final manager = SchemaManager(
-///   stanza,
-///   tables: [Post.$table, Author.$table],
-///   migrationsDir: 'migrations',
-/// );
-///
-/// // See what's different between code and database
-/// final ops = await manager.diff();
-///
-/// // Generate a migration file from the diff
-/// final path = await manager.generate();
-///
-/// // Apply pending migrations
-/// await manager.apply();
-///
-/// // Check migration status
-/// final statuses = await manager.status();
-/// ```
+/// Takes a [Stanza] connection and a list of generated [TableDescriptor]
+/// instances that provide `$schema` metadata.
 class SchemaManager {
-  final Stanza _stanza;
-  final List<Table> _tables;
-  final String migrationsDir;
-  final MigrationFileWriter _fileWriter;
-  final MigrationRunner _runner;
+  final Stanza _db;
+  final List<TableDescriptor> _tables;
+  final String _migrationsDir;
+
+  late final _introspector = DbIntrospector(_db);
+  late final _runner = MigrationRunner(_db, migrationsDir: _migrationsDir);
 
   SchemaManager(
-    this._stanza, {
-    required List<Table> tables,
-    this.migrationsDir = 'migrations',
+    this._db, {
+    required List<TableDescriptor> tables,
+    String migrationsDir = 'migrations',
   })  : _tables = tables,
-        _fileWriter = const MigrationFileWriter(),
-        _runner = MigrationRunner(_stanza, migrationsDir: migrationsDir);
+        _migrationsDir = migrationsDir;
 
-  /// Computes the diff between the expected schema (from code) and the
-  /// actual database schema.
+  /// Computes the diff between code schema and live database.
   ///
-  /// Tables are sorted topologically by FK dependencies so parent tables
-  /// appear before children in the resulting operations.
+  /// Tables are diffed in topological order (FK parents first).
   Future<List<SchemaDiffOp>> diff() async {
-    final introspector = DbIntrospector(_stanza);
-    final expectedTables = _getExpectedTables();
-    final tableNames = expectedTables.map((t) => t.name).toList();
-    final actualMap = await introspector.introspect(tableNames);
+    final expectedSchemas = <SchemaTable>[];
+    for (final table in _tables) {
+      final schema = table.$schema;
+      if (schema != null) expectedSchemas.add(schema);
+    }
 
-    // Topologically sort expected tables by FK dependencies
-    final sorted = _topologicalSort(expectedTables);
+    if (expectedSchemas.isEmpty) return [];
 
+    // Topologically sort by FK dependencies (parents first)
+    final sorted = _topologicalSort(expectedSchemas);
+
+    // Introspect actual schemas
+    final tableNames = sorted.map((t) => t.name).toList();
+    final actual = await _introspector.introspect(tableNames);
+
+    // Diff each table
     final ops = <SchemaDiffOp>[];
     for (final expected in sorted) {
-      final actual = actualMap[expected.name];
-      ops.addAll(SchemaDiff.diff(expected, actual));
+      ops.addAll(SchemaDiff.diff(expected, actual[expected.name]));
     }
 
     return ops;
@@ -71,95 +58,77 @@ class SchemaManager {
 
   /// Generates a migration file from the current diff.
   ///
-  /// Returns the file path, or null if there are no differences.
+  /// Returns the file path, or null if the schema is up-to-date.
   Future<String?> generate() async {
     final ops = await diff();
     if (ops.isEmpty) return null;
 
-    final dir = Directory(migrationsDir);
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
+    final dir = Directory(_migrationsDir);
+    if (!dir.existsSync()) dir.createSync(recursive: true);
 
-    final filename = _fileWriter.generateFilename();
-    final content = _fileWriter.generate(ops);
-    final file = File('$migrationsDir/$filename');
-    file.writeAsStringSync(content);
+    final filename = MigrationFileWriter.generateFilename();
+    final content = MigrationFileWriter.generate(ops);
+    final path = '${dir.path}/$filename';
+    File(path).writeAsStringSync(content);
 
-    return file.path;
+    return path;
   }
 
-  /// Applies all pending migration files.
+  /// Applies all pending migrations.
+  Future<List<String>> apply({bool dryRun = false}) =>
+      _runner.apply(dryRun: dryRun);
+
+  /// Returns the status of all migration files.
+  Future<List<MigrationStatus>> status() => _runner.status();
+
+  /// Topologically sorts tables so FK-referenced tables come first.
   ///
-  /// If [dryRun] is true, prints the SQL that would be executed.
-  /// Returns the list of applied filenames.
-  Future<List<String>> apply({bool dryRun = false}) async {
-    return _runner.apply(dryRun: dryRun);
-  }
-
-  /// Returns the status of all migration files (applied or pending).
-  Future<List<MigrationStatus>> status() async {
-    return _runner.status();
-  }
-
-  List<SchemaTable> _getExpectedTables() {
-    final tables = <SchemaTable>[];
-    for (final table in _tables) {
-      final schema = table.$schema;
-      if (schema != null) {
-        tables.add(schema);
-      }
-    }
-    return tables;
-  }
-
-  /// Topological sort using Kahn's algorithm.
-  ///
-  /// Tables that are referenced by FK constraints come before the tables
-  /// that reference them. This ensures parent tables are created first.
-  List<SchemaTable> _topologicalSort(List<SchemaTable> tables) {
-    final tableMap = {for (final t in tables) t.name: t};
+  /// Uses Kahn's algorithm. Cycles are appended at the end.
+  static List<SchemaTable> _topologicalSort(List<SchemaTable> tables) {
+    final byName = {for (final t in tables) t.name: t};
     final inDegree = {for (final t in tables) t.name: 0};
-    final edges = <String, List<String>>{}; // parent → [children]
 
+    // Build dependency graph from FK constraints
     for (final table in tables) {
       for (final constraint in table.constraints) {
         if (constraint.kind == ConstraintKind.foreignKey &&
             constraint.referencedTable != null &&
-            tableMap.containsKey(constraint.referencedTable)) {
-          // table depends on constraint.referencedTable
-          edges
-              .putIfAbsent(constraint.referencedTable!, () => [])
-              .add(table.name);
+            byName.containsKey(constraint.referencedTable)) {
           inDegree[table.name] = (inDegree[table.name] ?? 0) + 1;
         }
       }
     }
 
-    // Kahn's algorithm
+    // Process tables with no dependencies first
     final queue = <String>[
       for (final entry in inDegree.entries)
         if (entry.value == 0) entry.key,
     ];
     final sorted = <SchemaTable>[];
+    final visited = <String>{};
 
     while (queue.isNotEmpty) {
       final name = queue.removeAt(0);
-      sorted.add(tableMap[name]!);
+      if (visited.contains(name)) continue;
+      visited.add(name);
+      sorted.add(byName[name]!);
 
-      for (final child in (edges[name] ?? [])) {
-        inDegree[child] = (inDegree[child] ?? 1) - 1;
-        if (inDegree[child] == 0) {
-          queue.add(child);
+      // Decrease in-degree of dependents
+      for (final table in tables) {
+        if (visited.contains(table.name)) continue;
+        for (final c in table.constraints) {
+          if (c.kind == ConstraintKind.foreignKey &&
+              c.referencedTable == name) {
+            inDegree[table.name] = (inDegree[table.name] ?? 1) - 1;
+            if (inDegree[table.name] == 0) queue.add(table.name);
+          }
         }
       }
     }
 
-    // If there are cycles or unresolved tables, append them at the end
+    // Append any unresolved (cyclic) tables
     for (final table in tables) {
-      if (!sorted.any((t) => t.name == table.name)) {
-        sorted.add(table);
-      }
+      if (!visited.contains(table.name)) sorted.add(table);
     }
 
     return sorted;
