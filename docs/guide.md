@@ -1,6 +1,6 @@
 # Stanza — Consumer Guide
 
-Complete API reference for building applications with Stanza v2.
+Complete API reference for building applications with Stanza v2. Database-agnostic core with PostgreSQL and SQLite adapters.
 
 ## Setup
 
@@ -11,10 +11,17 @@ dependencies:
       url: https://github.com/kirklink/stanza
       path: stanza
       ref: dev
+
+  # Pick one (or both) adapters:
   stanza_postgres:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza_postgres
+      ref: dev
+  stanza_sqlite:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza_sqlite
       ref: dev
 
 dev_dependencies:
@@ -25,6 +32,8 @@ dev_dependencies:
       path: stanza_builder
       ref: dev
 ```
+
+SQLite requires the native `libsqlite3` library (`libsqlite3-dev` on Debian/Ubuntu).
 
 ## Quick Start
 
@@ -55,12 +64,19 @@ dart run build_runner build --delete-conflicting-outputs
 ```
 
 ```dart
+// PostgreSQL
 import 'package:stanza_postgres/stanza_postgres.dart';
-
 final db = Stanza.url('postgresql://user:pass@host/dbname');
+
+// — OR — SQLite
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+final db = StanzaSqlite.open('app.db');
+```
+
+```dart
 final users = $UserTable();
 
-// Query
+// Query — identical regardless of adapter
 final results = SelectQuery(users)
     .where((t) => t.email.like('%@example.com'))
     .orderBy((t) => t.createdAt.desc())
@@ -141,15 +157,17 @@ const Database({required List<Type> entities})
 
 ### Type Inference
 
-| Dart Type | PostgreSQL Type |
-|-----------|----------------|
-| `int` | `integer` |
-| `int` + `@PrimaryKey()` | `serial` |
-| `String` | `text` |
-| `String` + `@Field(length: n)` | `varchar(n)` |
-| `bool` | `boolean` |
-| `double` | `double precision` |
-| `DateTime` | `timestamptz` |
+| Dart Type | PostgreSQL Type | SQLite Type | SQLite Storage |
+|-----------|----------------|-------------|----------------|
+| `int` | `integer` | `INTEGER` | int |
+| `int` + `@PrimaryKey()` | `serial` | `INTEGER PRIMARY KEY` | int (rowid alias) |
+| `String` | `text` | `TEXT` | String |
+| `String` + `@Field(length: n)` | `varchar(n)` | `TEXT` | String |
+| `bool` | `boolean` | `INTEGER` | 0/1 |
+| `double` | `double precision` | `REAL` | double |
+| `DateTime` | `timestamptz` | `TEXT` | ISO 8601 UTC string |
+
+SQLite type conversion is automatic — the adapter converts `bool` ↔ `int` and `DateTime` ↔ `String` on read/write. Generated `fromRow()` code works identically across adapters.
 
 ---
 
@@ -846,6 +864,92 @@ await db.close();
 
 ---
 
+## Connection (SQLite)
+
+```dart
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+```
+
+### StanzaSqlite
+
+```dart
+// File-based database
+final db = StanzaSqlite.open(
+  'app.db',
+  enableForeignKeys: true,  // default: true (PRAGMA foreign_keys = ON)
+  walMode: true,            // default: true (PRAGMA journal_mode = WAL)
+);
+
+// In-memory database (testing)
+final db = StanzaSqlite.memory(
+  enableForeignKeys: true,  // default: true
+);
+```
+
+Single connection, no pool. WAL mode enables concurrent reads.
+
+### Execute Queries
+
+Same `DatabaseAdapter` interface as PostgreSQL — `execute`, `rawExecute`, `rawQuery`, `transaction`, `run`, `close` all work identically.
+
+```dart
+// Typed query execution
+final result = await db.execute(selectQuery);
+final users = result.entities;
+
+// Raw SQL (use : prefix for parameters)
+await db.rawExecute(
+  'INSERT INTO users (name, active) VALUES (:name, :active)',
+  parameters: {'name': 'Kirk', 'active': true},
+);
+
+// Raw SQL with mapper
+final names = await db.rawQuery(
+  'SELECT name FROM users WHERE active = :active',
+  parameters: {'active': true},
+  mapper: (row) => row['name'] as String,
+);
+```
+
+### Transactions
+
+```dart
+await db.transaction((session) async {
+  await session.execute(insertUserQuery);
+  await session.execute(insertPostQuery);
+  // Auto-rollback on throw
+});
+
+await db.run((session) async {
+  await session.execute(query1);
+  await session.execute(query2);
+});
+```
+
+`SqliteSession` (implements `SessionAdapter`) has the same `execute`, `rawExecute`, and `rawQuery` methods as `StanzaSqlite`.
+
+### Close
+
+```dart
+await db.close();
+```
+
+### SQLite Limitations
+
+| Feature | Status |
+|---------|--------|
+| SELECT, INSERT, UPDATE, DELETE | Full support |
+| JOINs, aggregates, subqueries | Full support |
+| `LIKE` | Full support (case-insensitive for ASCII by default) |
+| `ILIKE` | Not supported (use `LIKE`) |
+| Full-text search (`fullTextMatches`) | Not supported (PostgreSQL `tsvector`) |
+| Trigram similarity (`isSimilarTo`) | Not supported (PostgreSQL `pg_trgm`) |
+| Streaming (`stream()`) | Not supported |
+| `ON CONFLICT` / upsert | Full support |
+| `RETURNING` | Supported (SQLite 3.35+) |
+
+---
+
 ## QueryResult
 
 ```dart
@@ -963,7 +1067,7 @@ Thrown when:
 
 Import: `import 'package:stanza_postgres/stanza_postgres.dart';`
 
-Schema management is provided by the PostgreSQL adapter package. The core `stanza` package provides the schema types (`SchemaTable`, `SchemaColumn`, `SchemaDiffOp`, etc.) and the diff engine, while `stanza_postgres` provides the database-specific introspection, migration runner, and CLI.
+Each adapter provides its own schema management: introspection, migration runner, and CLI. The core `stanza` package provides shared types (`SchemaTable`, `SchemaColumn`, `SchemaDiffOp`, etc.) and the diff engine.
 
 ### Migration CLI
 
@@ -1042,11 +1146,112 @@ class MigrationStatus {
 
 ---
 
+## Schema Management (SQLite)
+
+Import: `import 'package:stanza_sqlite/stanza_sqlite.dart';`
+
+Same workflow as PostgreSQL — diff code vs database, generate migration files, apply with checksum tracking. Uses PRAGMA-based introspection instead of `information_schema`.
+
+### Migration CLI
+
+Create a `bin/migrate.dart`:
+
+```dart
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+import 'package:my_app/models.dart';
+
+void main(List<String> args) => SqliteCli.run(
+  args,
+  databasePath: 'app.db',
+  tables: [$UserTable(), $PostTable()],
+);
+```
+
+```bash
+dart run bin/migrate.dart status     # show applied vs pending
+dart run bin/migrate.dart diff       # show code vs database differences
+dart run bin/migrate.dart generate   # write timestamped .sql migration file
+dart run bin/migrate.dart apply      # apply all pending migrations
+dart run bin/migrate.dart apply --dry-run  # preview without executing
+```
+
+### SqliteCli.run
+
+```dart
+static Future<void> run(
+  List<String> args, {
+  String? databasePath,       // path to .db file
+  DatabaseAdapter? db,        // OR provide an existing adapter
+  required List<TableDescriptor> tables,
+  String migrationsDir = 'migrations',
+})
+```
+
+Provide either `databasePath` or `db`, not both. When `databasePath` is used, the connection is closed automatically after the command runs.
+
+### Programmatic API
+
+```dart
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+
+final db = StanzaSqlite.open('app.db');
+
+final manager = SqliteSchemaManager(
+  db,
+  tables: [$UserTable(), $PostTable()],
+  migrationsDir: 'migrations',
+);
+
+final ops = await manager.diff();         // List<SchemaDiffOp>
+final path = await manager.generate();    // writes .sql file, returns path (null if up-to-date)
+final applied = await manager.apply();    // applies pending, returns filenames
+final statuses = await manager.status();  // List<SqliteMigrationStatus>
+```
+
+### SqliteMigrationStatus
+
+```dart
+class SqliteMigrationStatus {
+  final String filename;
+  final bool applied;
+  final DateTime? appliedAt;
+}
+```
+
+### SQLite Migration Limitations
+
+| SchemaDiffOp | SQLite Support |
+|--------------|---------------|
+| `CreateTable` | Full DDL generation |
+| `AddColumn` | Full DDL generation |
+| `DropColumn` | Commented out (`-- SAFETY:`) |
+| `AlterColumnType` | TODO comment (requires table rebuild) |
+| `AlterColumnNullability` | TODO comment (requires table rebuild) |
+| `AlterColumnDefault` | TODO comment (requires table rebuild) |
+| `AddConstraint` | TODO comment (requires table rebuild) |
+| `DropConstraint` | TODO comment (requires table rebuild) |
+
+SQLite does not support `ALTER COLUMN`. Operations that require it are rendered as TODO comments in the migration file. Manually implement these using the [12-step table rebuild](https://www.sqlite.org/lang_altertable.html#otheralter) pattern.
+
+### Default Value Conversion
+
+| Code Default | PostgreSQL DDL | SQLite DDL |
+|-------------|---------------|------------|
+| `'now()'` | `DEFAULT NOW()` | `DEFAULT (datetime('now'))` |
+| `'true'` | `DEFAULT true` | `DEFAULT 1` |
+| `'false'` | `DEFAULT false` | `DEFAULT 0` |
+| `"'active'"` | `DEFAULT 'active'` | `DEFAULT 'active'` |
+
+---
+
 ## Complete Example
 
 ```dart
 import 'package:stanza/stanza.dart';
+
+// Pick your adapter:
 import 'package:stanza_postgres/stanza_postgres.dart';
+// OR: import 'package:stanza_sqlite/stanza_sqlite.dart';
 
 part 'models.g.dart';
 
@@ -1089,7 +1294,10 @@ class Post {
 // --- Usage ---
 
 Future<void> main() async {
+  // PostgreSQL:
   final db = Stanza.url('postgresql://user:pass@host/dbname');
+  // SQLite: final db = StanzaSqlite.open('app.db');
+
   final users = $UserTable();
   final posts = $PostTable();
 
@@ -1159,3 +1367,9 @@ Future<void> main() async {
   await db.close();
 }
 ```
+
+---
+
+## Framework Integration
+
+Stanza is the database layer for the framework. For how it works alongside Swoop (HTTP handlers), Chary (PII-safe entity fields), and the rest of the stack, see `docs/integration-guide.md` in the workspace root.

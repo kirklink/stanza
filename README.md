@@ -24,7 +24,7 @@ Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimiz
 - ON CONFLICT: upsert with DO UPDATE or DO NOTHING
 - Code generation: `@Entity` + `build_runner` generates table descriptors, companions, schema metadata
 - Schema management: diff code vs database, generate forward-only SQL migrations, apply with checksums
-- Database adapters: pluggable architecture — PostgreSQL adapter included, SQLite planned
+- Database adapters: pluggable architecture — PostgreSQL and SQLite adapters included
 - Connection pooling: wraps `postgres` v3 with instance caching (via `stanza_postgres`)
 - Streaming: row-by-row results without buffering
 - Transactions: automatic rollback on error
@@ -35,6 +35,7 @@ Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimiz
 |---------|---------|
 | `stanza` | Core ORM — annotations, columns, expressions, query builder, schema types |
 | `stanza_postgres` | PostgreSQL adapter — connection pool, introspection, migrations, CLI |
+| `stanza_sqlite` | SQLite adapter — file/memory databases, introspection, migrations, CLI |
 | `stanza_builder` | Code generation — `@Entity` → table descriptors, companions, schema |
 
 ## Quick Start
@@ -63,11 +64,13 @@ class User {
 }
 ```
 
-Generate, query, insert:
+Generate and query:
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
+
+**PostgreSQL:**
 
 ```dart
 import 'package:stanza_postgres/stanza_postgres.dart';
@@ -75,22 +78,25 @@ import 'package:stanza_postgres/stanza_postgres.dart';
 final db = Stanza.url('postgresql://user:pass@host/dbname');
 final users = $UserTable();
 
-// SELECT
-final query = SelectQuery(users)
-    .where((t) => t.email.like('%@example.com'))
-    .orderBy((t) => t.createdAt.desc())
-    .limit(10);
-final result = await db.execute(query);
-
-// INSERT
-final insert = InsertQuery(users)
-    .values(UserInsert(email: 'a@b.com', name: 'Kirk').toRow())
-    .returning();
-
-// UPDATE
-final update = UpdateQuery(users, UserUpdate(name: 'Spock').toRow())
-    .where((t) => t.id.equals(1));
+final result = await db.execute(
+  SelectQuery(users).where((t) => t.email.like('%@example.com')),
+);
 ```
+
+**SQLite:**
+
+```dart
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+
+final db = StanzaSqlite.open('app.db');  // or StanzaSqlite.memory() for tests
+final users = $UserTable();
+
+final result = await db.execute(
+  SelectQuery(users).where((t) => t.email.like('%@example.com')),
+);
+```
+
+Same query builder, same entity types — swap one import and one connection line.
 
 ## Setup
 
@@ -101,10 +107,17 @@ dependencies:
       url: https://github.com/kirklink/stanza
       path: stanza
       ref: dev
+
+  # Pick one (or both) adapters:
   stanza_postgres:
     git:
       url: https://github.com/kirklink/stanza
       path: stanza_postgres
+      ref: dev
+  stanza_sqlite:
+    git:
+      url: https://github.com/kirklink/stanza
+      path: stanza_sqlite
       ref: dev
 
 dev_dependencies:
@@ -116,6 +129,8 @@ dev_dependencies:
       ref: dev
 ```
 
+SQLite requires `libsqlite3-dev` (Debian/Ubuntu) or equivalent native library.
+
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) — Contributor guide (architecture, internals, how to modify the package)
@@ -123,19 +138,21 @@ dev_dependencies:
 
 ## Status
 
-v2 rewrite complete with multi-database adapter support. All phases implemented:
+v2 rewrite complete with multi-database adapter support. PostgreSQL and SQLite adapters.
 
-| Phase | Description | Tests |
-|-------|-------------|-------|
-| 0 | Branch & scaffold | - |
-| 1 | Foundation (annotations, columns, expressions) | 34 |
-| 2 | Query builder (SELECT, INSERT, UPDATE, DELETE, JOIN) | 42 |
-| 3 | Code generator (entity_generator, type_mapping) | 20 |
-| 4 | Connection & execution (DatabaseAdapter, TableAccessor) | - |
-| 5 | Schema & migrations (diff, introspect, migrate, CLI) | 57 |
-| 6a | Aggregates + GROUP BY + HAVING | 30 |
-| 6b | Full-text search + trigram similarity | 17 |
-| 6c | Subqueries + raw SQL | 5 |
-| 7 | Multi-database adapter support + package split | - |
+| Package | Tests |
+|---------|-------|
+| `stanza` (core) | 209 |
+| `stanza_sqlite` | 67 |
+| `stanza/example` | 20 |
 
-**229 tests total**, zero analysis issues.
+**296 tests total**, zero analysis issues.
+
+### SQLite Limitations
+
+The SQLite adapter supports the full Stanza query builder (SELECT, INSERT, UPDATE, DELETE, JOINs, aggregates, subqueries). Not supported:
+
+- **FTS / trigram**: PostgreSQL-specific (`to_tsvector`, `pg_trgm`)
+- **ILIKE**: use `LIKE` instead (SQLite LIKE is case-insensitive for ASCII by default)
+- **ALTER COLUMN migrations**: SQLite only supports `CREATE TABLE` and `ADD COLUMN`. Other schema changes are rendered as TODO comments in migration files.
+- **Streaming**: not implemented (SQLite is synchronous FFI)
