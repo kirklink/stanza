@@ -11,6 +11,7 @@
 /// ```
 library;
 
+export 'src/fts5.dart';
 export 'src/sqlite_database.dart';
 export 'src/schema/sqlite_cli.dart';
 export 'src/schema/sqlite_ddl.dart';

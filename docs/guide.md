@@ -629,9 +629,9 @@ SelectQuery(posts)
 
 ---
 
-## Full-Text Search
+## Full-Text Search (PostgreSQL)
 
-Requires no extensions for basic FTS. Trigram operations require `pg_trgm`.
+Requires no extensions for basic FTS. Trigram operations require `pg_trgm`. For SQLite, see [SQLite FTS5 Full-Text Search](#sqlite-fts5-full-text-search).
 
 ### FtsConfig
 
@@ -700,7 +700,7 @@ SelectQuery(posts)
 
 ---
 
-## Trigram Similarity
+## Trigram Similarity (PostgreSQL)
 
 Requires `CREATE EXTENSION IF NOT EXISTS pg_trgm;`.
 
@@ -741,6 +741,139 @@ SelectQuery(users)
     .where((t) => t.name.isSimilarTo('jonh'))
     .orderByDistance((t) => t.name, 'jonh');
 ```
+
+---
+
+## SQLite FTS5 Full-Text Search
+
+SQLite FTS5 uses virtual tables with the `MATCH` operator and auxiliary functions (`bm25`, `highlight`, `snippet`). This is a different model from PostgreSQL FTS — it operates on tables, not columns.
+
+### Fts5Index Configuration
+
+```dart
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+
+const Fts5Index({
+  required String sourceTable,    // content table name (e.g. 'posts')
+  required List<String> columns,  // columns to index
+  String? tableName,              // FTS table name (default: '${sourceTable}_fts')
+  String contentRowid = 'rowid',  // maps to FTS5 rowid (default: implicit SQLite rowid)
+  String? tokenize,               // tokenizer (e.g. 'porter unicode61')
+})
+```
+
+```dart
+const postsFts = Fts5Index(
+  sourceTable: 'posts',
+  columns: ['title', 'body'],
+  tokenize: 'porter unicode61',
+);
+```
+
+### DDL — Create / Drop
+
+```dart
+// Create FTS5 virtual table
+await db.rawExecute(SqliteDdl.createFts5Table(postsFts));
+// CREATE VIRTUAL TABLE posts_fts USING fts5(
+//   title, body, content='posts', content_rowid='rowid', tokenize='porter unicode61')
+
+// Create sync triggers (keeps FTS index in sync with content table)
+for (final trigger in SqliteDdl.createFts5Triggers(postsFts)) {
+  await db.rawExecute(trigger);
+}
+
+// Drop (triggers + table)
+for (final stmt in SqliteDdl.dropFts5Table(postsFts)) {
+  await db.rawExecute(stmt);
+}
+```
+
+### Query — JOIN + MATCH
+
+Two methods for joining FTS5 virtual tables:
+
+```dart
+// fts5Join: uses a typed column (for INTEGER PRIMARY KEY tables)
+SelectQuery(posts)
+    .fts5Join('posts_fts', (t) => t.id, 'database optimization');
+// → JOIN posts_fts ON posts.id = posts_fts.rowid WHERE posts_fts MATCH :p0
+
+// fts5JoinOnRowid: uses implicit SQLite rowid (works with any PK type)
+SelectQuery(articles)
+    .fts5JoinOnRowid('articles_fts', 'database optimization');
+// → JOIN articles_fts ON articles.rowid = articles_fts.rowid WHERE articles_fts MATCH :p0
+```
+
+Use `fts5JoinOnRowid` for tables with TEXT primary keys (e.g. ULIDs, slugs) where the FTS5 index uses the default `contentRowid: 'rowid'`. Both methods compose with `selectFts5Rank`, `selectFts5Highlight`, `selectFts5Snippet`, and `orderByFts5Rank`.
+
+### SELECT — Ranking
+
+```dart
+SelectQuery<T, D> selectFts5Rank(
+  String ftsTableName, {
+  String alias = 'rank',
+  List<double>? weights,       // per-column weights for bm25()
+  bool orderByRank = true,     // adds ORDER BY bm25(...)
+})
+
+SelectQuery<T, D> orderByFts5Rank(
+  String ftsTableName, {
+  List<double>? weights,       // ORDER BY only, no SELECT projection
+})
+```
+
+```dart
+// Rank with column weights (title=10x, body=1x)
+SelectQuery(posts)
+    .fts5Join('posts_fts', (t) => t.id, 'optimization')
+    .selectFts5Rank('posts_fts', weights: [10.0, 1.0]);
+```
+
+### SELECT — Highlight and Snippet
+
+```dart
+SelectQuery<T, D> selectFts5Highlight(
+  String ftsTableName,
+  int columnIndex, {          // 0-based column index in FTS table
+  String open = '<b>',
+  String close = '</b>',
+  String alias = 'headline',
+})
+
+SelectQuery<T, D> selectFts5Snippet(
+  String ftsTableName,
+  int columnIndex, {
+  String open = '<b>',
+  String close = '</b>',
+  String ellipsis = '...',
+  int tokens = 64,            // max tokens in snippet
+  String alias = 'snippet',
+})
+```
+
+```dart
+// Highlight matches in title (column 0), snippet from body (column 1)
+SelectQuery(posts)
+    .fts5Join('posts_fts', (t) => t.id, 'optimization')
+    .selectFts5Rank('posts_fts', weights: [10.0, 1.0])
+    .selectFts5Highlight('posts_fts', 0, open: '<mark>', close: '</mark>')
+    .selectFts5Snippet('posts_fts', 1, tokens: 32);
+```
+
+### Introspection
+
+```dart
+final introspector = SqliteIntrospector(db);
+final exists = await introspector.fts5TableExists('posts_fts'); // true/false
+```
+
+### Notes
+
+- FTS5 virtual tables are **not auto-diffed** by the schema manager. Create/drop them manually via `SqliteDdl` helpers.
+- The default `contentRowid: 'rowid'` uses SQLite's implicit integer rowid, which works for all PK types. For `INTEGER PRIMARY KEY` tables, the PK column is an alias for `rowid`, so both approaches are equivalent.
+- The `columnIndex` in `highlight()` and `snippet()` is 0-based and refers to the column order in `Fts5Index.columns`.
+- Queries with FTS5 projections (rank, highlight, snippet) add extra columns to the result. Access them via `QueryResult.rows` (raw maps), not `.entities`.
 
 ---
 
@@ -942,8 +1075,9 @@ await db.close();
 | JOINs, aggregates, subqueries | Full support |
 | `LIKE` | Full support (case-insensitive for ASCII by default) |
 | `ILIKE` | Not supported (use `LIKE`) |
-| Full-text search (`fullTextMatches`) | Not supported (PostgreSQL `tsvector`) |
+| Full-text search (`fullTextMatches`) | Not supported (PostgreSQL `tsvector`) — use FTS5 instead |
 | Trigram similarity (`isSimilarTo`) | Not supported (PostgreSQL `pg_trgm`) |
+| FTS5 full-text search | Full support (see SQLite FTS5 section) |
 | Streaming (`stream()`) | Not supported |
 | `ON CONFLICT` / upsert | Full support |
 | `RETURNING` | Supported (SQLite 3.35+) |

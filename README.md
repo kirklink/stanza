@@ -18,8 +18,9 @@ Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimiz
 - Fluent query builder: SELECT, INSERT, UPDATE, DELETE with method chaining
 - JOINs: INNER, LEFT, RIGHT with typed column conditions
 - Aggregates: COUNT, SUM, AVG, MIN, MAX with GROUP BY and HAVING
-- Full-text search: `to_tsvector`/`tsquery`, ts_rank, ts_headline, multiple languages
-- Trigram similarity: fuzzy matching with `pg_trgm` operators
+- Full-text search (PostgreSQL): `to_tsvector`/`tsquery`, ts_rank, ts_headline, multiple languages
+- Full-text search (SQLite): FTS5 with MATCH, bm25 ranking, highlight, snippet
+- Trigram similarity: fuzzy matching with `pg_trgm` operators (PostgreSQL)
 - Subqueries: `WHERE col IN (SELECT ...)`
 - ON CONFLICT: upsert with DO UPDATE or DO NOTHING
 - Code generation: `@Entity` + `build_runner` generates table descriptors, companions, schema metadata
@@ -142,17 +143,17 @@ v2 rewrite complete with multi-database adapter support. PostgreSQL and SQLite a
 
 | Package | Tests |
 |---------|-------|
-| `stanza` (core) | 209 |
-| `stanza_sqlite` | 67 |
+| `stanza` (core) | 224 |
+| `stanza_sqlite` | 89 |
 | `stanza/example` | 20 |
 
-**296 tests total**, zero analysis issues.
+**333 tests total**, zero analysis issues.
 
 ### SQLite Limitations
 
 The SQLite adapter supports the full Stanza query builder (SELECT, INSERT, UPDATE, DELETE, JOINs, aggregates, subqueries). Not supported:
 
-- **FTS / trigram**: PostgreSQL-specific (`to_tsvector`, `pg_trgm`)
+- **PostgreSQL FTS / trigram**: `to_tsvector`, `pg_trgm` are PostgreSQL-only (use FTS5 for SQLite full-text search)
 - **ILIKE**: use `LIKE` instead (SQLite LIKE is case-insensitive for ASCII by default)
 - **ALTER COLUMN migrations**: SQLite only supports `CREATE TABLE` and `ADD COLUMN`. Other schema changes are rendered as TODO comments in migration files.
 - **Streaming**: not implemented (SQLite is synchronous FFI)

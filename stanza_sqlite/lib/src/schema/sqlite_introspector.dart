@@ -155,6 +155,17 @@ class SqliteIntrospector {
     return result;
   }
 
+  /// Checks whether an FTS5 virtual table exists in the database.
+  Future<bool> fts5TableExists(String tableName) async {
+    final rows = await _db.rawQuery(
+      "SELECT sql FROM sqlite_master "
+      "WHERE type='table' AND name=:name AND sql LIKE '%fts5%'",
+      parameters: {'name': tableName},
+      mapper: (row) => row['sql'] as String,
+    );
+    return rows.isNotEmpty;
+  }
+
   /// Maps SQLite type strings to canonical [ColumnType] values.
   static ColumnType _mapSqliteType(String sqliteType) {
     final upper = sqliteType.toUpperCase().trim();

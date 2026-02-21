@@ -262,6 +262,27 @@ class TrigramWordSimilar extends Expression {
   }
 }
 
+/// SQLite FTS5 MATCH: `fts_table MATCH @param`.
+///
+/// Used in WHERE clauses to filter rows matching an FTS5 query.
+/// Typically paired with a JOIN to the FTS5 virtual table via
+/// [SelectQuery.fts5Join].
+class Fts5Match extends Expression {
+  /// The FTS5 virtual table name (e.g. `'posts_fts'`).
+  final String ftsTableName;
+
+  /// The FTS5 query string (e.g. `'database optimization'`).
+  final String query;
+
+  const Fts5Match(this.ftsTableName, this.query);
+
+  @override
+  String toSql(ParameterCollector params) {
+    final placeholder = params.add(query);
+    return '$ftsTableName MATCH $placeholder';
+  }
+}
+
 /// Subquery membership: `column IN (SELECT ...)`.
 ///
 /// The subquery shares the same [ParameterCollector] as the outer query,

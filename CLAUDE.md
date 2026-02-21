@@ -37,12 +37,12 @@ dart test --reporter github 2>/dev/null
 | `lib/src/annotations.dart` | `Entity`, `Field`, `PrimaryKey`, `References`, `Database` |
 | `lib/src/column.dart` | `Column<T>` hierarchy: Int, String, Bool, Double, DateTime columns |
 | `lib/src/database.dart` | `DatabaseAdapter`, `SessionAdapter` abstract interfaces, `AdapterSessionBlock` typedef |
-| `lib/src/expression.dart` | Sealed `Expression` tree (18 subtypes) + `AggregateExpression`, `CountAll` |
+| `lib/src/expression.dart` | Sealed `Expression` tree (19 subtypes incl. `Fts5Match`) + `AggregateExpression`, `CountAll` |
 | `lib/src/fts.dart` | `FtsConfig`, `FtsQueryType` enums |
 | `lib/src/order.dart` | `OrderExpression` (column + ASC/DESC) |
 | `lib/src/parameter.dart` | `ParameterCollector` — assigns parameterized placeholders, configurable prefix (`@` for Postgres, `:` for SQLite) |
 | `lib/src/query.dart` | Abstract `Query<T, D>` base with `toSql()` and `build()` |
-| `lib/src/select_query.dart` | `SelectQuery` — WHERE, ORDER BY, JOIN, GROUP BY, HAVING, FTS projections |
+| `lib/src/select_query.dart` | `SelectQuery` — WHERE, ORDER BY, JOIN, GROUP BY, HAVING, FTS projections, FTS5 methods |
 | `lib/src/insert_query.dart` | `InsertQuery` — values, valuesList, returning, onConflict |
 | `lib/src/update_query.dart` | `UpdateQuery` — SET from map, WHERE, returning, safety check |
 | `lib/src/delete_query.dart` | `DeleteQuery` — WHERE, returning, safety check |
@@ -72,10 +72,11 @@ dart test --reporter github 2>/dev/null
 
 | File | Purpose |
 |------|---------|
-| `lib/stanza_sqlite.dart` | Barrel export — StanzaSqlite, schema, CLI |
+| `lib/stanza_sqlite.dart` | Barrel export — StanzaSqlite, Fts5Index, schema, CLI |
+| `lib/src/fts5.dart` | `Fts5Index` — FTS5 virtual table configuration (sourceTable, columns, tokenizer) |
 | `lib/src/sqlite_database.dart` | `StanzaSqlite` (file/memory, implements `DatabaseAdapter`), `SqliteSession` (implements `SessionAdapter`) |
-| `lib/src/schema/sqlite_ddl.dart` | `SqliteDdl` — SQLite-specific DDL generation from `SchemaDiffOp` |
-| `lib/src/schema/sqlite_introspector.dart` | `SqliteIntrospector` — reads `PRAGMA table_info`, `foreign_key_list`, `index_list` |
+| `lib/src/schema/sqlite_ddl.dart` | `SqliteDdl` — SQLite-specific DDL generation from `SchemaDiffOp` + FTS5 DDL (`createFts5Table`, `createFts5Triggers`, `dropFts5Table`) |
+| `lib/src/schema/sqlite_introspector.dart` | `SqliteIntrospector` — reads `PRAGMA table_info`, `foreign_key_list`, `index_list` + `fts5TableExists()` |
 | `lib/src/schema/sqlite_migration_runner.dart` | `SqliteMigrationRunner` — applies migrations, SHA-256 checksums, tracking table |
 | `lib/src/schema/sqlite_schema_manager.dart` | `SqliteSchemaManager` — orchestrates diff → generate → apply |
 | `lib/src/schema/sqlite_cli.dart` | `SqliteCli` — CLI: status, diff, generate, apply |
@@ -144,6 +145,18 @@ Full-text search uses two layers:
 
 The `_RawFragment` approach avoids adding FTS-specific types to the Expression hierarchy for projections that aren't WHERE conditions.
 
+### FTS5 Architecture (SQLite)
+
+SQLite FTS5 operates on virtual tables, not columns — a fundamentally different model from PostgreSQL FTS:
+
+1. **Expression level:** `Fts5Match` is a sealed Expression subtype — renders `fts_table MATCH :p0`.
+2. **SelectQuery level:** `_RawJoin` class enables joining virtual tables (which aren't `TableDescriptor` instances). Six methods: `fts5Join()` (JOIN on typed column + WHERE MATCH), `fts5JoinOnRowid()` (JOIN on implicit rowid — for TEXT PK tables), `selectFts5Rank()` (bm25), `selectFts5Highlight()`, `selectFts5Snippet()`, `orderByFts5Rank()`.
+3. **DDL level (stanza_sqlite):** `Fts5Index` config class + `SqliteDdl` static methods generate `CREATE VIRTUAL TABLE`, sync triggers (INSERT/DELETE/UPDATE), and drop statements. `SqliteIntrospector.fts5TableExists()` checks for FTS5 tables.
+
+FTS5 DDL is manual (not auto-diffed) — virtual tables can't be diffed/altered like regular tables. Users call `SqliteDdl.createFts5Table()` from migrations or app startup.
+
+`Fts5Index.contentRowid` defaults to `'rowid'` (SQLite's implicit integer rowid), which works for all PK types including TEXT PKs. For INTEGER PK tables, the PK column is an alias for `rowid`, so the default is equivalent.
+
 ### Subquery Parameters
 
 `SubqueryIn`/`SubqueryNotIn` store a `String Function(ParameterCollector)` closure instead of a `Query` reference. The outer query's `ParameterCollector` is passed through, so subquery parameters merge correctly with outer parameters (`@p0` for outer, `@p1` for subquery, etc.).
@@ -203,11 +216,12 @@ This ensures generated `fromRow()` code (which does `row['active'] as bool`) wor
 
 ## Testing
 
-- **296 total:** 209 core + 67 SQLite + 20 example tests
+- **345 total:** 227 core + 98 SQLite + 20 example tests
 - Core tests are pure Dart, no IO — construct columns/queries and assert SQL output
 - SQLite tests use in-memory databases (`StanzaSqlite.memory()`) — no file IO, fast
 - Schema tests: `column_type_test.dart` (22), `schema_diff_test.dart` (28), `migration_file_test.dart` (7)
-- SQLite tests: `sqlite_database_test.dart` (16), `sqlite_ddl_test.dart` (30), `sqlite_introspector_test.dart` (11), `sqlite_migration_runner_test.dart` (10)
+- FTS5 core tests: `fts5_sqlite_test.dart` (18) — SQL output assertions (includes fts5JoinOnRowid)
+- SQLite tests: `sqlite_database_test.dart` (16), `sqlite_ddl_test.dart` (30), `sqlite_introspector_test.dart` (11), `sqlite_migration_runner_test.dart` (10), `fts5_test.dart` (31 — includes TEXT PK integration tests)
 - Postgres integration tests skip gracefully without `DATABASE_URL`
 - SQLite requires `libsqlite3-dev` system package for FFI bindings
 - Use `--reporter github 2>/dev/null` to avoid ANSI output overflow

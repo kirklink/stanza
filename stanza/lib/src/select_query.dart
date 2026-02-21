@@ -18,6 +18,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   final List<Expression> _wheres = [];
   final List<OrderExpression> _orders = [];
   final List<_Join> _joins = [];
+  final List<_RawJoin> _rawJoins = [];
   final List<Expression> _havingConditions = [];
   final List<AggregateExpression> _extraSelects = [];
   final List<_RawFragment> _rawSelectFragments = [];
@@ -185,6 +186,125 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     return this;
   }
 
+  // -- SQLite FTS5 projections --
+
+  /// Joins an FTS5 virtual table and adds a MATCH WHERE condition.
+  ///
+  /// ```dart
+  /// query.fts5Join('posts_fts', (t) => t.id, 'database optimization');
+  /// ```
+  SelectQuery<T, D> fts5Join(
+    String ftsTableName,
+    Column Function(D t) sourceIdColumn,
+    String query,
+  ) {
+    final col = sourceIdColumn(table);
+    _rawJoins.add(_RawJoin(
+      'JOIN',
+      ftsTableName,
+      '${col.qualified} = $ftsTableName.rowid',
+    ));
+    _wheres.add(Fts5Match(ftsTableName, query));
+    return this;
+  }
+
+  /// Joins an FTS5 virtual table using SQLite's implicit `rowid`.
+  ///
+  /// Use this for tables with TEXT primary keys where the FTS5 index
+  /// uses `contentRowid: 'rowid'` (the default). For tables with
+  /// `INTEGER PRIMARY KEY` columns, [fts5Join] also works.
+  ///
+  /// ```dart
+  /// query.fts5JoinOnRowid('articles_fts', 'search term');
+  /// // → JOIN articles_fts ON articles.rowid = articles_fts.rowid
+  /// //   WHERE articles_fts MATCH :p0
+  /// ```
+  SelectQuery<T, D> fts5JoinOnRowid(
+    String ftsTableName,
+    String query,
+  ) {
+    _rawJoins.add(_RawJoin(
+      'JOIN',
+      ftsTableName,
+      '${table.tableName}.rowid = $ftsTableName.rowid',
+    ));
+    _wheres.add(Fts5Match(ftsTableName, query));
+    return this;
+  }
+
+  /// Adds `bm25(fts_table)` to SELECT and optionally ORDER BY rank.
+  ///
+  /// ```dart
+  /// query.selectFts5Rank('posts_fts', weights: [10.0, 1.0]);
+  /// ```
+  SelectQuery<T, D> selectFts5Rank(
+    String ftsTableName, {
+    String alias = 'rank',
+    List<double>? weights,
+    bool orderByRank = true,
+  }) {
+    final weightArgs = weights != null ? ', ${weights.join(', ')}' : '';
+    final fn = 'bm25($ftsTableName$weightArgs)';
+    _rawSelectFragments.add(_RawFragment('$fn AS $alias', const {}));
+    if (orderByRank) {
+      _rawOrderFragments.add(_RawFragment(fn, const {}));
+    }
+    return this;
+  }
+
+  /// Adds `highlight(fts_table, col_index, open, close)` to SELECT.
+  ///
+  /// ```dart
+  /// query.selectFts5Highlight('posts_fts', 1,
+  ///     open: '<mark>', close: '</mark>');
+  /// ```
+  SelectQuery<T, D> selectFts5Highlight(
+    String ftsTableName,
+    int columnIndex, {
+    String open = '<b>',
+    String close = '</b>',
+    String alias = 'headline',
+  }) {
+    _rawSelectFragments.add(_RawFragment(
+      'highlight($ftsTableName, $columnIndex, :open, :close) AS $alias',
+      {'open': open, 'close': close},
+    ));
+    return this;
+  }
+
+  /// Adds `snippet(fts_table, col_index, open, close, ellipsis, tokens)` to SELECT.
+  ///
+  /// ```dart
+  /// query.selectFts5Snippet('posts_fts', 1, tokens: 32);
+  /// ```
+  SelectQuery<T, D> selectFts5Snippet(
+    String ftsTableName,
+    int columnIndex, {
+    String open = '<b>',
+    String close = '</b>',
+    String ellipsis = '...',
+    int tokens = 64,
+    String alias = 'snippet',
+  }) {
+    _rawSelectFragments.add(_RawFragment(
+      'snippet($ftsTableName, $columnIndex, :open, :close, :ellipsis, $tokens) AS $alias',
+      {'open': open, 'close': close, 'ellipsis': ellipsis},
+    ));
+    return this;
+  }
+
+  /// Adds `bm25(fts_table)` to ORDER BY without adding it to SELECT.
+  SelectQuery<T, D> orderByFts5Rank(
+    String ftsTableName, {
+    List<double>? weights,
+  }) {
+    final weightArgs = weights != null ? ', ${weights.join(', ')}' : '';
+    _rawOrderFragments.add(
+      _RawFragment('bm25($ftsTableName$weightArgs)', const {}),
+    );
+    return this;
+  }
+
   /// Adds an INNER JOIN.
   SelectQuery<T, D> innerJoin<J, JD extends TableDescriptor<J>>(
     JD joinTable,
@@ -247,6 +367,11 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
       buf.write(' ${join.type} ${join.tableName} ON ${join.on.toSql(params)}');
     }
 
+    // Raw JOINs (FTS5 virtual tables, etc.)
+    for (final join in _rawJoins) {
+      buf.write(' ${join.type} ${join.tableName} ON ${join.onClause}');
+    }
+
     // WHERE
     if (_wheres.isNotEmpty) {
       buf.write(' WHERE ');
@@ -307,6 +432,14 @@ class _Join {
   final Expression on;
 
   _Join(this.type, this.tableName, this.on);
+}
+
+class _RawJoin {
+  final String type;
+  final String tableName;
+  final String onClause;
+
+  _RawJoin(this.type, this.tableName, this.onClause);
 }
 
 /// A raw SQL fragment with named placeholders that get resolved to `@pN`.

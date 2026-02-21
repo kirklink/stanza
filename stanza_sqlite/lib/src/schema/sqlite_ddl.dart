@@ -1,5 +1,7 @@
 import 'package:stanza/schema.dart';
 
+import '../fts5.dart';
+
 /// SQLite-specific DDL generation from schema diff operations.
 ///
 /// Handles the differences between PostgreSQL and SQLite DDL syntax:
@@ -114,6 +116,76 @@ class SqliteDdl {
     if (sqlDefault != null) buf.write(' DEFAULT $sqlDefault');
     buf.write(';');
     return buf.toString();
+  }
+
+  // -- FTS5 DDL --
+
+  /// Generates `CREATE VIRTUAL TABLE ... USING fts5(...)` DDL.
+  ///
+  /// Uses external content mode, pointing at [Fts5Index.sourceTable].
+  ///
+  /// ```dart
+  /// SqliteDdl.createFts5Table(Fts5Index(
+  ///   sourceTable: 'posts',
+  ///   columns: ['title', 'body'],
+  ///   tokenize: 'porter unicode61',
+  /// ));
+  /// ```
+  static String createFts5Table(Fts5Index index) {
+    final buf = StringBuffer('CREATE VIRTUAL TABLE ${index.tableName} ');
+    buf.write('USING fts5(');
+    buf.write(index.columns.join(', '));
+    buf.write(", content='${index.sourceTable}'");
+    buf.write(", content_rowid='${index.contentRowid}'");
+    if (index.tokenize != null) {
+      buf.write(", tokenize='${index.tokenize}'");
+    }
+    buf.write(');');
+    return buf.toString();
+  }
+
+  /// Generates the three sync triggers (INSERT, DELETE, UPDATE) that keep
+  /// the FTS5 index in sync with the content table.
+  ///
+  /// Returns a list of three SQL statements.
+  static List<String> createFts5Triggers(Fts5Index index) {
+    final fts = index.tableName;
+    final src = index.sourceTable;
+    final cols = index.columns;
+    final rid = index.contentRowid;
+
+    final newCols = cols.map((c) => 'new.$c').join(', ');
+    final oldCols = cols.map((c) => 'old.$c').join(', ');
+    final colList = cols.join(', ');
+
+    return [
+      // AFTER INSERT
+      'CREATE TRIGGER ${fts}_ai AFTER INSERT ON $src BEGIN '
+          "INSERT INTO $fts(rowid, $colList) VALUES (new.$rid, $newCols); "
+          'END;',
+      // AFTER DELETE
+      'CREATE TRIGGER ${fts}_ad AFTER DELETE ON $src BEGIN '
+          "INSERT INTO $fts($fts, rowid, $colList) VALUES ('delete', old.$rid, $oldCols); "
+          'END;',
+      // AFTER UPDATE
+      'CREATE TRIGGER ${fts}_au AFTER UPDATE ON $src BEGIN '
+          "INSERT INTO $fts($fts, rowid, $colList) VALUES ('delete', old.$rid, $oldCols); "
+          "INSERT INTO $fts(rowid, $colList) VALUES (new.$rid, $newCols); "
+          'END;',
+    ];
+  }
+
+  /// Generates DDL to drop an FTS5 table and its sync triggers.
+  ///
+  /// Returns a list of SQL statements (3 trigger drops + 1 table drop).
+  static List<String> dropFts5Table(Fts5Index index) {
+    final fts = index.tableName;
+    return [
+      'DROP TRIGGER IF EXISTS ${fts}_ai;',
+      'DROP TRIGGER IF EXISTS ${fts}_ad;',
+      'DROP TRIGGER IF EXISTS ${fts}_au;',
+      'DROP TABLE IF EXISTS $fts;',
+    ];
   }
 
   /// Generates a full migration file from [SchemaDiffOp] operations.
