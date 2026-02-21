@@ -1,18 +1,18 @@
 # Stanza — Contributor Guide
 
-Type-safe, AI-first database-agnostic ORM for Dart. Three packages: `stanza` (core runtime), `stanza_postgres` (PostgreSQL adapter), and `stanza_builder` (code generation).
+Type-safe, AI-first database-agnostic ORM for Dart. Four packages: `stanza` (core runtime), `stanza_postgres` (PostgreSQL adapter), `stanza_sqlite` (SQLite adapter), and `stanza_builder` (code generation).
 
 - For consumer-facing API reference, see [docs/guide.md](docs/guide.md)
 
 ## Commands
 
 ```bash
-# Run tests (from stanza/stanza/)
+# Run tests (from stanza/stanza/, stanza_sqlite/, or stanza/example/)
 dart test --reporter github 2>/dev/null    # full pass/fail output
 dart test --reporter github 2>/dev/null | tail -1  # summary only
 
 # Analyze
-dart analyze                               # from stanza/stanza/, stanza_postgres/, or stanza_builder/
+dart analyze                               # from stanza/stanza/, stanza_postgres/, stanza_sqlite/, or stanza_builder/
 
 # Regenerate example code (from stanza/stanza/example/)
 dart run build_runner build --delete-conflicting-outputs
@@ -68,6 +68,18 @@ dart test --reporter github 2>/dev/null
 | `lib/src/schema/pg_schema_manager.dart` | `PgSchemaManager` — orchestrates diff → generate → apply |
 | `lib/src/schema/pg_cli.dart` | `PgCli` — CLI: status, diff, generate, apply |
 
+### stanza/stanza_sqlite/ (SQLite adapter)
+
+| File | Purpose |
+|------|---------|
+| `lib/stanza_sqlite.dart` | Barrel export — StanzaSqlite, schema, CLI |
+| `lib/src/sqlite_database.dart` | `StanzaSqlite` (file/memory, implements `DatabaseAdapter`), `SqliteSession` (implements `SessionAdapter`) |
+| `lib/src/schema/sqlite_ddl.dart` | `SqliteDdl` — SQLite-specific DDL generation from `SchemaDiffOp` |
+| `lib/src/schema/sqlite_introspector.dart` | `SqliteIntrospector` — reads `PRAGMA table_info`, `foreign_key_list`, `index_list` |
+| `lib/src/schema/sqlite_migration_runner.dart` | `SqliteMigrationRunner` — applies migrations, SHA-256 checksums, tracking table |
+| `lib/src/schema/sqlite_schema_manager.dart` | `SqliteSchemaManager` — orchestrates diff → generate → apply |
+| `lib/src/schema/sqlite_cli.dart` | `SqliteCli` — CLI: status, diff, generate, apply |
+
 ### stanza/stanza_builder/ (code generation)
 
 | File | Purpose |
@@ -103,7 +115,7 @@ abstract class DatabaseAdapter {
 }
 ```
 
-`Stanza` in `stanza_postgres` implements `DatabaseAdapter` using the `postgres` v3 driver. Future adapters (e.g. SQLite) would implement the same interface with their own driver.
+`Stanza` in `stanza_postgres` implements `DatabaseAdapter` using the `postgres` v3 driver. `StanzaSqlite` in `stanza_sqlite` implements it using the `sqlite3` FFI driver.
 
 `ParameterCollector` has a configurable `placeholderPrefix` — `@` for Postgres (`@p0`), `:` for SQLite (`:p0`). The values map keys stay unprefixed (`p0`); only the SQL placeholder changes.
 
@@ -166,6 +178,22 @@ The `$schema` getter generates full `SchemaTable` metadata including `SchemaColu
 3. `MigrationFileWriter.generate()` renders operations to timestamped SQL wrapped in `BEGIN`/`COMMIT`
 4. `PgMigrationRunner.apply()` executes pending files in filename order, records each in `_stanza_migrations` tracking table with SHA-256 checksum; rejects modified applied migrations
 
+### Migration Pipeline (SQLite)
+
+1. Same as PostgreSQL pipeline (topological sort, `SchemaDiff.diff()`) but uses:
+   - `SqliteIntrospector` — reads schema via `PRAGMA table_info`, `PRAGMA foreign_key_list`, `PRAGMA index_list`
+   - `SqliteDdl.generateMigration()` — renders SQLite-specific DDL (`INTEGER PRIMARY KEY` instead of `SERIAL`, `datetime('now')` instead of `NOW()`, type mapping via `dartTypeName`)
+   - `SqliteMigrationRunner` — same tracking table pattern but with SQLite-compatible DDL
+2. SQLite limitations: only `CREATE TABLE` and `ADD COLUMN` fully supported. `ALTER COLUMN`, `ADD/DROP CONSTRAINT` rendered as TODO comments (requires table rebuild in SQLite).
+
+### SQLite Type Conversion
+
+`StanzaSqlite` handles type conversion between Dart and SQLite storage types:
+- **On write:** `bool` → `int` (0/1), `DateTime` → `String` (ISO 8601 UTC)
+- **On read:** Uses `$schema.columns[].dartTypeName` to reverse conversions before `fromRow()` — `int` → `bool`, `String` → `DateTime`
+
+This ensures generated `fromRow()` code (which does `row['active'] as bool`) works identically across Postgres and SQLite.
+
 ### Safety Constraints
 
 - UPDATE/DELETE without `.where()` throw `StanzaException` at `toSql()` time unless `.allowUnsafe()` is called
@@ -175,12 +203,15 @@ The `$schema` getter generates full `SchemaTable` metadata including `SchemaColu
 
 ## Testing
 
-- **229 total:** 209 core tests in `stanza/stanza/test/` + 20 example tests
-- Tests are pure Dart, no IO — construct columns/queries and assert SQL output
+- **296 total:** 209 core + 67 SQLite + 20 example tests
+- Core tests are pure Dart, no IO — construct columns/queries and assert SQL output
+- SQLite tests use in-memory databases (`StanzaSqlite.memory()`) — no file IO, fast
 - Schema tests: `column_type_test.dart` (22), `schema_diff_test.dart` (28), `migration_file_test.dart` (7)
-- Integration tests (live Postgres) skip gracefully without `DATABASE_URL`
+- SQLite tests: `sqlite_database_test.dart` (16), `sqlite_ddl_test.dart` (30), `sqlite_introspector_test.dart` (11), `sqlite_migration_runner_test.dart` (10)
+- Postgres integration tests skip gracefully without `DATABASE_URL`
+- SQLite requires `libsqlite3-dev` system package for FFI bindings
 - Use `--reporter github 2>/dev/null` to avoid ANSI output overflow
 
 ## Current Status
 
-v2 rewrite complete with multi-database adapter support. Core package is database-agnostic; PostgreSQL adapter in `stanza_postgres`. Zero analysis issues.
+v2 rewrite complete with multi-database adapter support. Core package is database-agnostic; PostgreSQL adapter in `stanza_postgres`; SQLite adapter in `stanza_sqlite`. Zero analysis issues across all packages.
