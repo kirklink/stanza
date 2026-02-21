@@ -1,6 +1,7 @@
 import 'column.dart';
 import 'expression.dart';
 import 'fts.dart';
+import 'identifier.dart';
 import 'order.dart';
 import 'parameter.dart';
 import 'query.dart';
@@ -198,6 +199,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     Column Function(D t) sourceIdColumn,
     String query,
   ) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     final col = sourceIdColumn(table);
     _rawJoins.add(_RawJoin(
       'JOIN',
@@ -223,6 +225,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     String ftsTableName,
     String query,
   ) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     _rawJoins.add(_RawJoin(
       'JOIN',
       ftsTableName,
@@ -243,6 +246,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     List<double>? weights,
     bool orderByRank = true,
   }) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     final weightArgs = weights != null ? ', ${weights.join(', ')}' : '';
     final fn = 'bm25($ftsTableName$weightArgs)';
     _rawSelectFragments.add(_RawFragment('$fn AS $alias', const {}));
@@ -265,6 +269,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     String close = '</b>',
     String alias = 'headline',
   }) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     _rawSelectFragments.add(_RawFragment(
       'highlight($ftsTableName, $columnIndex, :open, :close) AS $alias',
       {'open': open, 'close': close},
@@ -286,6 +291,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     int tokens = 64,
     String alias = 'snippet',
   }) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     _rawSelectFragments.add(_RawFragment(
       'snippet($ftsTableName, $columnIndex, :open, :close, :ellipsis, $tokens) AS $alias',
       {'open': open, 'close': close, 'ellipsis': ellipsis},
@@ -298,6 +304,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
     String ftsTableName, {
     List<double>? weights,
   }) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
     final weightArgs = weights != null ? ', ${weights.join(', ')}' : '';
     _rawOrderFragments.add(
       _RawFragment('bm25($ftsTableName$weightArgs)', const {}),

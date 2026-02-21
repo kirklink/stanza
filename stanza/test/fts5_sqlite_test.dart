@@ -220,6 +220,66 @@ void main() {
     });
   });
 
+  group('identifier validation', () {
+    test('fts5Join rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts)
+            .fts5Join('posts_fts; DROP TABLE posts; --', (t) => t.id, 'q'),
+        throwsArgumentError,
+      );
+    });
+
+    test('fts5JoinOnRowid rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts)
+            .fts5JoinOnRowid('posts_fts; DROP TABLE posts; --', 'q'),
+        throwsArgumentError,
+      );
+    });
+
+    test('selectFts5Rank rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts).selectFts5Rank('x"); DROP TABLE t; --'),
+        throwsArgumentError,
+      );
+    });
+
+    test('selectFts5Highlight rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts).selectFts5Highlight('x) AS z; --', 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('selectFts5Snippet rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts).selectFts5Snippet('x) AS z; --', 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('orderByFts5Rank rejects malicious table name', () {
+      expect(
+        () => SelectQuery(posts).orderByFts5Rank('x); DROP TABLE t; --'),
+        throwsArgumentError,
+      );
+    });
+
+    test('Fts5Match rejects malicious table name', () {
+      expect(
+        () => Fts5Match('x; DROP TABLE t; --', 'query'),
+        throwsArgumentError,
+      );
+    });
+
+    test('accepts valid identifiers', () {
+      // Should not throw
+      SelectQuery(posts).fts5Join('posts_fts', (t) => t.id, 'query');
+      SelectQuery(posts).fts5Join('PostsFTS5', (t) => t.id, 'query');
+      SelectQuery(posts).fts5Join('_private_fts', (t) => t.id, 'query');
+    });
+  });
+
   group('combined FTS5', () {
     test('fts5Join + rank + highlight + snippet', () {
       final q = SelectQuery(posts)

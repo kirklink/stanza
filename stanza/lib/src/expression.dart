@@ -1,3 +1,4 @@
+import 'identifier.dart';
 import 'parameter.dart';
 
 /// A composable SQL expression that renders to parameterized SQL.
@@ -274,7 +275,9 @@ class Fts5Match extends Expression {
   /// The FTS5 query string (e.g. `'database optimization'`).
   final String query;
 
-  const Fts5Match(this.ftsTableName, this.query);
+  Fts5Match(this.ftsTableName, this.query) {
+    assertValidIdentifier(ftsTableName, 'ftsTableName');
+  }
 
   @override
   String toSql(ParameterCollector params) {
