@@ -121,7 +121,7 @@ const PrimaryKey({bool autoIncrement = true})
 Configures a field's database column.
 
 ```dart
-const Field({String? name, int? length, bool unique = false, String? defaultValue, String? type, bool ignore = false})
+const Field({String? name, int? length, bool unique = false, String? defaultValue, String? type, bool ignore = false, bool fts = false})
 ```
 
 | Parameter | Type | Default | Purpose |
@@ -132,6 +132,7 @@ const Field({String? name, int? length, bool unique = false, String? defaultValu
 | `defaultValue` | `String?` | `null` | SQL DEFAULT expression: `'now()'`, `'true'` |
 | `type` | `String?` | `null` | Override SQL type: `'jsonb'`, `'uuid'` |
 | `ignore` | `bool` | `false` | Skip field in generated code |
+| `fts` | `bool` | `false` | Mark field for full-text search indexing (used by `@CellarCollection` schema generation) |
 
 ### @References
 
@@ -153,6 +154,69 @@ Marks a class as the database entry point (for future use with generated `$AppDa
 
 ```dart
 const Database({required List<Type> entities})
+```
+
+### @CellarCollection
+
+Opt-in annotation that generates a `$cellarSchema` getter on the `$Table` class. The output is a `Map<String, dynamic>` compatible with `Collection.fromJson()` from `package:cellar`.
+
+```dart
+const CellarCollection({String? name})
+```
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `name` | `String?` | `null` | Override Cellar collection name. Default: uses the `@Entity(name:)` table name |
+
+Import: `import 'package:stanza/annotations.dart';` (exported alongside other annotations)
+
+```dart
+@Entity()
+@CellarCollection()
+class Episode {
+  @PrimaryKey(autoIncrement: false)
+  final String id;
+
+  @Field(fts: true)
+  final String content;
+
+  final String type;
+  final double importance;
+
+  @Field(defaultValue: 'false')
+  final bool consolidated;
+
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const Episode({...});
+}
+```
+
+The generator emits on `$EpisodeTable`:
+
+```dart
+Map<String, dynamic> get $cellarSchema => const {
+  'name': 'episodes',
+  'fields': [
+    {'name': 'content', 'type': 'text', 'fts': true},
+    {'name': 'type', 'type': 'text'},
+    {'name': 'importance', 'type': 'real'},
+    {'name': 'consolidated', 'type': 'bool', 'default': false},
+  ],
+};
+```
+
+System fields (`id`, `created_at`, `updated_at`) are excluded — Cellar auto-manages them.
+
+Register at startup:
+
+```dart
+import 'package:cellar/cellar.dart';
+
+final cellar = Cellar.open('data.db', collections: [
+  Collection.fromJson($EpisodeTable().$cellarSchema),
+]);
 ```
 
 ### Type Inference
@@ -1019,7 +1083,16 @@ final db = StanzaSqlite.memory(
 );
 ```
 
-Single connection, no pool. WAL mode enables concurrent reads.
+```dart
+// From an externally-managed database (e.g., Cellar)
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
+final db = StanzaSqlite.fromDatabase(
+  externalDb,                     // sqlite3.Database instance
+  ownsDatabase: false,            // default: false — close() won't dispose the database
+);
+```
+
+Single connection, no pool. WAL mode enables concurrent reads. Use `fromDatabase()` to run Stanza queries against a Cellar-managed database via `cellar.database`.
 
 ### Execute Queries
 
@@ -1501,6 +1574,65 @@ Future<void> main() async {
   await db.close();
 }
 ```
+
+---
+
+## Cellar Integration
+
+Stanza entities can target a [Cellar](https://github.com/kirklink/cellar)-managed SQLite database for encrypted storage, auto-migration, and REST/MCP transport — while retaining Stanza's typed SQL query builder.
+
+### Setup
+
+Add `@CellarCollection()` to entities (see [Annotations](#cellarcollection) above) and add Cellar as a dependency:
+
+```yaml
+dependencies:
+  cellar:
+    path: ../cellar   # or git ref
+  stanza_sqlite:
+    # ...
+```
+
+### Usage Pattern
+
+```dart
+import 'package:cellar/cellar.dart';
+import 'package:stanza_sqlite/stanza_sqlite.dart';
+import 'models.dart';  // your entities with @CellarCollection
+
+// 1. Open Cellar with schemas from Stanza-generated getters
+final cellar = Cellar.open('data.db', collections: [
+  Collection.fromJson($EpisodeTable().$cellarSchema),
+]);
+
+// 2. Wrap the Cellar-managed database for Stanza queries
+final db = StanzaSqlite.fromDatabase(cellar.database);
+
+// 3. Use Stanza's typed query builder
+final episodes = $EpisodeTable();
+final results = await SelectQuery(episodes)
+    .where((t) => t.type.equals('conversation'))
+    .orderBy((t) => t.importance.desc())
+    .limit(10)
+    .run(db);
+
+// 4. Or use Cellar's CRUD / filter / search API
+final svc = cellar.collection('episodes');
+final recent = svc.list(filter: 'type = "conversation"', sort: '-importance', limit: 10);
+
+// 5. Close Stanza adapter (doesn't dispose DB), then close Cellar
+await db.close();
+cellar.close();
+```
+
+### Two Code Gen Paths
+
+| Path | Generator | Use Case |
+|------|-----------|----------|
+| `@CellarCollection` (Stanza) | `stanza_builder` | Stanza typed SQL queries on Cellar-managed DB (embedded only) |
+| `@CellarEntity` (Cellar) | `cellar_builder` | Standalone Cellar CRUD/filter/search with typed service (embedded + remote) |
+
+Choose `@CellarCollection` when you need Stanza's full SQL query builder (JOINs, aggregates, subqueries, FTS5). Choose `@CellarEntity` when you need Cellar's built-in CRUD/filter/search API with both embedded and remote (HTTP) access.
 
 ---
 

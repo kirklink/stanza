@@ -34,7 +34,8 @@ dart test --reporter github 2>/dev/null
 | `lib/stanza.dart` | Main barrel export — everything |
 | `lib/schema.dart` | Schema-only barrel — for migration scripts |
 | `lib/annotations.dart` | Annotation-only barrel — for entity files |
-| `lib/src/annotations.dart` | `Entity`, `Field`, `PrimaryKey`, `References`, `Database` |
+| `lib/src/annotations.dart` | `Entity`, `Field` (incl. `fts`), `PrimaryKey`, `References`, `Database` |
+| `lib/src/cellar_annotations.dart` | `CellarCollection` annotation (opt-in Cellar schema generation) |
 | `lib/src/column.dart` | `Column<T>` hierarchy: Int, String, Bool, Double, DateTime columns |
 | `lib/src/database.dart` | `DatabaseAdapter`, `SessionAdapter` abstract interfaces, `AdapterSessionBlock` typedef |
 | `lib/src/expression.dart` | Sealed `Expression` tree (19 subtypes incl. `Fts5Match`) + `AggregateExpression`, `CountAll` |
@@ -88,6 +89,7 @@ dart test --reporter github 2>/dev/null
 | `lib/builder.dart` | `stanzaBuilder()` entry point — `SharedPartBuilder` |
 | `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema` |
 | `lib/src/type_mapping.dart` | `columnClassForDartType()`, `postgresTypeForDartType()`, `serialTypeForDartType()` |
+| `lib/src/cellar_type_mapping.dart` | `cellarFieldTypeName()` — Dart type → Cellar FieldType name mapping |
 | `build.yaml` | Builder config: `stanza_entity`, `build_to: cache`, `combining_builder` |
 
 ### stanza/stanza/example/ (test harness)
@@ -96,7 +98,10 @@ dart test --reporter github 2>/dev/null
 |------|---------|
 | `lib/src/models.dart` | `User` and `Post` entities with annotations |
 | `lib/src/models.g.dart` | Generated code: `$UserTable`, `$PostTable`, companions |
+| `lib/src/cellar_models.dart` | `Episode` and `Metric` entities with `@CellarCollection` |
+| `lib/src/cellar_models.g.dart` | Generated code: `$cellarSchema` getters on `$Table` classes |
 | `test/models_test.dart` | 20 tests against generated code |
+| `test/cellar_models_test.dart` | 19 tests — `$cellarSchema` output, `Collection.fromJson()` round-trip |
 
 ## Architecture
 
@@ -168,8 +173,32 @@ FTS5 DDL is manual (not auto-diffed) — virtual tables can't be diffed/altered 
 2. `EntityInsert` — required fields minus auto-increment PK; optional fields with DB defaults
 3. `EntityUpdate` — all writable fields optional; `toRow()` omits nulls
 4. `EntityCopyWith` extension — `copyWith()` on the entity
+5. *(conditional)* `$cellarSchema` getter on `$Table` — emitted when class has `@CellarCollection`
 
 Field naming: Dart camelCase → snake_case column names (via `recase` package). Table naming: class name → pluralized snake_case.
+
+### Cellar Integration (`@CellarCollection`)
+
+When an entity has `@CellarCollection()`, the generator emits a `Map<String, dynamic> get $cellarSchema` getter on the `$Table` class. This map is compatible with `Collection.fromJson()` in `package:cellar`. Consumers register Cellar collections from Stanza-generated schemas at startup.
+
+Key behaviors:
+- System fields (`id`, `created_at`, `updated_at`) are excluded from the `fields` list (Cellar auto-manages them)
+- `@Field(fts: true)` propagates to the Cellar schema for FTS5 indexing
+- Nullable fields, defaults, and unique constraints are mapped to Cellar equivalents
+- Type mapping uses `cellarFieldTypeName()` from `cellar_type_mapping.dart`
+- Collection name defaults to the `@Entity(name:)` table name; overridable via `@CellarCollection(name:)`
+
+This is complementary to (not a replacement for) `cellar_builder`, which generates standalone Cellar-only code gen with typed CRUD services. The `@CellarCollection` path is for apps using Stanza's typed SQL query builder against a Cellar-managed database.
+
+### StanzaSqlite.fromDatabase()
+
+Factory for wrapping an externally-managed `sqlite3.Database` (e.g., from `cellar.database`):
+
+```dart
+factory StanzaSqlite.fromDatabase(sqlite3.Database db, {bool ownsDatabase = false})
+```
+
+When `ownsDatabase` is `false` (default), `close()` does NOT dispose the database — the caller retains ownership. This enables Stanza queries against a Cellar-managed encrypted database.
 
 The `$schema` getter generates full `SchemaTable` metadata including `SchemaColumn` types (with `dartTypeName` for cross-dialect mapping), constraints (PK, unique, FK), and defaults — used by `PgSchemaManager` for migration diffing.
 
@@ -216,12 +245,12 @@ This ensures generated `fromRow()` code (which does `row['active'] as bool`) wor
 
 ## Testing
 
-- **345 total:** 227 core + 98 SQLite + 20 example tests
+- **386 total:** 235 core + 112 SQLite + 39 example tests
 - Core tests are pure Dart, no IO — construct columns/queries and assert SQL output
 - SQLite tests use in-memory databases (`StanzaSqlite.memory()`) — no file IO, fast
 - Schema tests: `column_type_test.dart` (22), `schema_diff_test.dart` (28), `migration_file_test.dart` (7)
 - FTS5 core tests: `fts5_sqlite_test.dart` (18) — SQL output assertions (includes fts5JoinOnRowid)
-- SQLite tests: `sqlite_database_test.dart` (16), `sqlite_ddl_test.dart` (30), `sqlite_introspector_test.dart` (11), `sqlite_migration_runner_test.dart` (10), `fts5_test.dart` (31 — includes TEXT PK integration tests)
+- SQLite tests: `sqlite_database_test.dart` (20 — incl. `fromDatabase()` tests), `sqlite_ddl_test.dart` (30), `sqlite_introspector_test.dart` (11), `sqlite_migration_runner_test.dart` (10), `fts5_test.dart` (31 — includes TEXT PK integration tests), `cellar_integration_test.dart` (12 — Cellar + Stanza embedded path)
 - Postgres integration tests skip gracefully without `DATABASE_URL`
 - SQLite requires `libsqlite3-dev` system package for FFI bindings
 - Use `--reporter github 2>/dev/null` to avoid ANSI output overflow
