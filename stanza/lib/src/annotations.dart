@@ -54,6 +54,11 @@ class Field {
   /// Skip this field entirely — no database column generated.
   final bool ignore;
 
+  /// Whether this field should be included in full-text search indexes.
+  /// Only meaningful for String (text) fields. Used by Cellar backend
+  /// code generation to set `fts: true` on the corresponding field.
+  final bool fts;
+
   const Field({
     this.name,
     this.length,
@@ -61,6 +66,7 @@ class Field {
     this.defaultValue,
     this.type,
     this.ignore = false,
+    this.fts = false,
   });
 }
 

@@ -1,3 +1,4 @@
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:stanza/stanza.dart';
 import 'package:stanza_sqlite/stanza_sqlite.dart';
 import 'package:test/test.dart';
@@ -346,6 +347,91 @@ void main() {
         mapper: (row) => row['name'] as String,
       );
       expect(names, ['Hank']);
+    });
+  });
+
+  group('StanzaSqlite.fromDatabase', () {
+    test('creates working adapter from external database', () async {
+      final externalDb = sqlite3.sqlite3.openInMemory();
+      externalDb.execute('PRAGMA foreign_keys = ON;');
+      externalDb.execute('''
+        CREATE TABLE test_users (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          active INTEGER NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      externalDb.execute(
+        "INSERT INTO test_users (name, active, created_at) VALUES ('Ivy', 1, '2024-01-01T00:00:00.000Z')",
+      );
+
+      final adapter = StanzaSqlite.fromDatabase(externalDb);
+      final result = await adapter.execute(
+        SelectQuery<_TestUser, _TestUserTable>(userTable),
+      );
+      expect(result.entities, hasLength(1));
+      expect(result.entities.first.name, 'Ivy');
+      expect(result.entities.first.active, isTrue);
+
+      await adapter.close();
+      // Database should still be usable (ownsDatabase defaults to false)
+      final row = externalDb.select('SELECT count(*) as cnt FROM test_users');
+      expect(row.first['cnt'], 1);
+      externalDb.dispose();
+    });
+
+    test('close with ownsDatabase: false does NOT dispose database', () async {
+      final externalDb = sqlite3.sqlite3.openInMemory();
+      final adapter = StanzaSqlite.fromDatabase(externalDb);
+
+      await adapter.close();
+
+      // Database still works — not disposed
+      externalDb.execute('SELECT 1');
+      externalDb.dispose();
+    });
+
+    test('close with ownsDatabase: true disposes database', () async {
+      final externalDb = sqlite3.sqlite3.openInMemory();
+      final adapter =
+          StanzaSqlite.fromDatabase(externalDb, ownsDatabase: true);
+
+      await adapter.close();
+
+      // Database should be disposed — next call should throw
+      expect(() => externalDb.execute('SELECT 1'), throwsA(isA<StateError>()));
+    });
+
+    test('type conversions work on externally-provided database', () async {
+      final externalDb = sqlite3.sqlite3.openInMemory();
+      externalDb.execute('''
+        CREATE TABLE test_users (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          active INTEGER NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+
+      final adapter = StanzaSqlite.fromDatabase(externalDb);
+      final now = DateTime.utc(2024, 7, 4, 12, 30, 45);
+
+      // Insert via rawExecute (tests Dart→SQLite conversion)
+      await adapter.rawExecute(
+        'INSERT INTO test_users (name, active, created_at) VALUES (:n, :a, :c)',
+        parameters: {'n': 'Jack', 'a': false, 'c': now},
+      );
+
+      // Query via typed execute (tests SQLite→Dart conversion)
+      final result = await adapter.execute(
+        SelectQuery<_TestUser, _TestUserTable>(userTable),
+      );
+      expect(result.entities.first.active, isFalse);
+      expect(result.entities.first.createdAt, now);
+
+      await adapter.close();
+      externalDb.dispose();
     });
   });
 }

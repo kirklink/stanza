@@ -6,6 +6,7 @@ import 'package:recase/recase.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:stanza/annotations.dart';
 
+import 'cellar_type_mapping.dart';
 import 'type_mapping.dart';
 
 const _fieldChecker =
@@ -14,6 +15,8 @@ const _pkChecker =
     TypeChecker.fromUrl('package:stanza/src/annotations.dart#PrimaryKey');
 const _refChecker =
     TypeChecker.fromUrl('package:stanza/src/annotations.dart#References');
+const _cellarChecker = TypeChecker.fromUrl(
+    'package:stanza/src/cellar_annotations.dart#CellarCollection');
 
 /// Generates table descriptors, companions, and mappers from `@Entity` classes.
 ///
@@ -66,8 +69,10 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     final tableName =
         entityAnnotation.name ?? '${ReCase(className).snakeCase}s';
 
+    final cellarAnnotation = _readCellarCollectionAnnotation(classEl);
+
     final buf = StringBuffer();
-    _writeTableDescriptor(buf, className, tableName, fields);
+    _writeTableDescriptor(buf, className, tableName, fields, cellarAnnotation);
     _writeInsertCompanion(buf, className, fields);
     _writeUpdateCompanion(buf, className, fields);
     _writeCopyWith(buf, className, fields);
@@ -78,6 +83,19 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
 
   _EntityAnnotation _readEntityAnnotation(ConstantReader reader) {
     return _EntityAnnotation(
+      name: reader.read('name').isNull
+          ? null
+          : reader.read('name').stringValue,
+    );
+  }
+
+  _CellarCollectionAnnotation? _readCellarCollectionAnnotation(
+      ClassElement classEl) {
+    final annotation = _cellarChecker.firstAnnotationOf(classEl);
+    if (annotation == null) return null;
+
+    final reader = ConstantReader(annotation);
+    return _CellarCollectionAnnotation(
       name: reader.read('name').isNull
           ? null
           : reader.read('name').stringValue,
@@ -126,6 +144,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
         postgresType: fieldAnnotation?.type,
         length: fieldAnnotation?.length,
         references: refAnnotation,
+        fts: fieldAnnotation?.fts ?? false,
       ));
     }
 
@@ -152,6 +171,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
           ? null
           : reader.read('type').stringValue,
       ignore: reader.read('ignore').boolValue,
+      fts: reader.read('fts').boolValue,
     );
   }
 
@@ -196,6 +216,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     String className,
     String tableName,
     List<_ResolvedField> fields,
+    _CellarCollectionAnnotation? cellarAnnotation,
   ) {
     final tableClass = '\$${className}Table';
     final pkField = fields.firstWhere((f) => f.isPrimaryKey);
@@ -237,6 +258,12 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
 
     // $schema
     _writeSchema(buf, tableName, fields);
+
+    // $cellarSchema (only when @CellarCollection is present)
+    if (cellarAnnotation != null) {
+      buf.writeln();
+      _writeCellarSchema(buf, tableName, fields, cellarAnnotation);
+    }
 
     buf.writeln('}');
     buf.writeln();
@@ -419,6 +446,84 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     buf.writeln('  );');
   }
 
+  // -- Cellar schema generation --
+
+  /// Cellar system fields — excluded from the generated Collection.fields.
+  static const _cellarSystemFields = {'id', 'created_at', 'updated_at'};
+
+  void _writeCellarSchema(
+    StringBuffer buf,
+    String tableName,
+    List<_ResolvedField> fields,
+    _CellarCollectionAnnotation cellarAnnotation,
+  ) {
+    final collectionName = cellarAnnotation.name ?? tableName;
+
+    // Filter out Cellar system fields
+    final userFields = fields
+        .where((f) => !_cellarSystemFields.contains(f.columnName))
+        .toList();
+
+    // Collect single-column unique constraints for indexes
+    final uniqueFields =
+        userFields.where((f) => f.isUnique).toList();
+
+    buf.writeln('  /// Cellar collection schema for `Collection.fromJson()`.');
+    buf.writeln('  Map<String, dynamic> get \$cellarSchema => const {');
+    buf.writeln("    'name': '$collectionName',");
+    buf.writeln("    'fields': [");
+
+    for (final field in userFields) {
+      final cellarType = cellarFieldTypeName(field.dartType);
+      buf.write("      {'name': '${field.columnName}', 'type': '$cellarType'");
+      if (field.isNullable) {
+        buf.write(", 'nullable': true");
+      }
+      if (field.fts && cellarType == 'text') {
+        buf.write(", 'fts': true");
+      }
+      if (field.defaultValue != null) {
+        // Only include literal defaults (not SQL expressions like 'now()')
+        final dv = field.defaultValue!;
+        if (_isCellarLiteralDefault(dv, field.dartType)) {
+          buf.write(", 'default': $dv");
+        }
+      }
+      buf.writeln('},');
+    }
+
+    buf.writeln('    ],');
+
+    if (uniqueFields.isNotEmpty) {
+      buf.writeln("    'indexes': [");
+      for (final field in uniqueFields) {
+        buf.writeln(
+            "      {'type': 'unique', 'fields': ['${field.columnName}']},");
+      }
+      buf.writeln('    ],');
+    }
+
+    buf.writeln('  };');
+  }
+
+  /// Returns true if the default value is a Dart literal suitable for Cellar,
+  /// not a SQL expression like `'now()'`.
+  bool _isCellarLiteralDefault(String value, String dartType) {
+    // Numeric literals
+    if (dartType == 'int' || dartType == 'double') {
+      return num.tryParse(value) != null;
+    }
+    // Boolean literals
+    if (dartType == 'bool') {
+      return value == 'true' || value == 'false';
+    }
+    // String literals (quoted with single quotes in SQL, e.g. "'active'")
+    if (dartType == 'String' && value.startsWith("'") && value.endsWith("'")) {
+      return true;
+    }
+    return false;
+  }
+
   String _pgTypeForField(_ResolvedField field) {
     if (field.postgresType != null) return field.postgresType!;
     if (field.autoIncrement) return serialTypeForDartType(field.dartType);
@@ -444,6 +549,11 @@ class _EntityAnnotation {
   _EntityAnnotation({this.name});
 }
 
+class _CellarCollectionAnnotation {
+  final String? name;
+  _CellarCollectionAnnotation({this.name});
+}
+
 class _FieldAnnotation {
   final String? name;
   final int? length;
@@ -451,6 +561,7 @@ class _FieldAnnotation {
   final String? defaultValue;
   final String? type;
   final bool ignore;
+  final bool fts;
 
   _FieldAnnotation({
     this.name,
@@ -459,6 +570,7 @@ class _FieldAnnotation {
     this.defaultValue,
     this.type,
     this.ignore = false,
+    this.fts = false,
   });
 }
 
@@ -491,6 +603,7 @@ class _ResolvedField {
   final String? postgresType;
   final int? length;
   final _ReferencesAnnotation? references;
+  final bool fts;
 
   _ResolvedField({
     required this.dartName,
@@ -504,5 +617,6 @@ class _ResolvedField {
     required this.postgresType,
     required this.length,
     required this.references,
+    required this.fts,
   });
 }

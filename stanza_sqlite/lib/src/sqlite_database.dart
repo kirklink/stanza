@@ -13,8 +13,10 @@ import 'package:stanza/stanza.dart';
 /// ```
 class StanzaSqlite implements DatabaseAdapter {
   final sqlite3.Database _db;
+  final bool _ownsDatabase;
 
-  StanzaSqlite._(this._db);
+  StanzaSqlite._(this._db, {bool ownsDatabase = true})
+      : _ownsDatabase = ownsDatabase;
 
   /// Opens a file-based SQLite database.
   ///
@@ -37,6 +39,18 @@ class StanzaSqlite implements DatabaseAdapter {
     final db = sqlite3.sqlite3.openInMemory();
     if (enableForeignKeys) db.execute('PRAGMA foreign_keys = ON;');
     return StanzaSqlite._(db);
+  }
+
+  /// Wraps a pre-existing [sqlite3.Database] instance.
+  ///
+  /// Use this to share a database managed by another system (e.g., Cellar).
+  /// When [ownsDatabase] is `false` (the default), [close] will NOT dispose
+  /// the database — the caller retains lifecycle ownership.
+  factory StanzaSqlite.fromDatabase(
+    sqlite3.Database db, {
+    bool ownsDatabase = false,
+  }) {
+    return StanzaSqlite._(db, ownsDatabase: ownsDatabase);
   }
 
   @override
@@ -132,7 +146,7 @@ class StanzaSqlite implements DatabaseAdapter {
 
   @override
   Future<void> close() async {
-    _db.dispose();
+    if (_ownsDatabase) _db.dispose();
   }
 
   /// Prefixes parameter keys and converts Dart types to SQLite-compatible values.
