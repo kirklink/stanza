@@ -30,6 +30,7 @@ class SelectQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   List<Column>? _selectColumns;
   List<Column>? _groupByColumns;
 
+  /// Creates a SELECT query for [table].
   SelectQuery(super.table);
 
   /// Adds a WHERE condition. Multiple calls are combined with AND.

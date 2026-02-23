@@ -17,6 +17,8 @@ class QueryResult<T> {
 
   List<T>? _cachedEntities;
 
+  /// Creates a query result with the given [rows] and optional [table]
+  /// descriptor for entity mapping.
   QueryResult({
     required this.rows,
     TableDescriptor<T>? table,

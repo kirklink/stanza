@@ -17,6 +17,7 @@ class CreateTable extends SchemaDiffOp {
   /// The complete table schema to create.
   final SchemaTable table;
 
+  /// Creates an operation to create the given [table].
   const CreateTable(this.table);
 
   @override
@@ -52,6 +53,7 @@ class AddColumn extends SchemaDiffOp {
   /// The column definition to add.
   final SchemaColumn column;
 
+  /// Creates an operation to add [column] to [tableName].
   const AddColumn(this.tableName, this.column);
 
   @override
@@ -78,6 +80,7 @@ class AlterColumnType extends SchemaDiffOp {
   /// The new PostgreSQL type (e.g. `'text'`, `'integer'`).
   final String newType;
 
+  /// Creates an operation to change [columnName] in [tableName] to [newType].
   const AlterColumnType(this.tableName, this.columnName, this.newType);
 
   @override
@@ -96,6 +99,7 @@ class AlterColumnNullability extends SchemaDiffOp {
   /// Whether the column should allow NULLs after the migration.
   final bool nullable;
 
+  /// Creates an operation to set [columnName] in [tableName] to [nullable].
   const AlterColumnNullability(this.tableName, this.columnName, this.nullable);
 
   @override
@@ -115,6 +119,7 @@ class AlterColumnDefault extends SchemaDiffOp {
   /// The new SQL DEFAULT expression, or null to drop the default.
   final String? newDefault;
 
+  /// Creates an operation to change the default of [columnName] in [tableName].
   const AlterColumnDefault(this.tableName, this.columnName, this.newDefault);
 
   @override
@@ -131,6 +136,7 @@ class AddConstraint extends SchemaDiffOp {
   /// The constraint to add (PK, unique, or FK).
   final SchemaConstraint constraint;
 
+  /// Creates an operation to add [constraint] to [tableName].
   const AddConstraint(this.tableName, this.constraint);
 
   @override
@@ -146,6 +152,7 @@ class DropColumn extends SchemaDiffOp {
   /// The column to drop.
   final String columnName;
 
+  /// Creates an operation to drop [columnName] from [tableName].
   const DropColumn(this.tableName, this.columnName);
 
   @override
@@ -161,6 +168,7 @@ class DropConstraint extends SchemaDiffOp {
   /// The constraint name to drop (e.g. `'users_email_key'`).
   final String constraintName;
 
+  /// Creates an operation to drop [constraintName] from [tableName].
   const DropConstraint(this.tableName, this.constraintName);
 
   @override

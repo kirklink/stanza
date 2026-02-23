@@ -18,6 +18,7 @@ import 'schema/schema_table.dart';
 /// }
 /// ```
 abstract class TableDescriptor<T> {
+  /// Creates a table descriptor.
   const TableDescriptor();
 
   /// The database table name (e.g. `'users'`).

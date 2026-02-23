@@ -31,6 +31,7 @@ class SchemaColumn {
   /// Whether this column has a UNIQUE constraint.
   final bool isUnique;
 
+  /// Creates a schema column with the given [name] and [type].
   const SchemaColumn({
     required this.name,
     required this.type,

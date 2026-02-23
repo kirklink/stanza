@@ -34,5 +34,7 @@ class CellarCollection {
   /// Override the collection name. Defaults to the `@Entity` table name.
   final String? name;
 
+  /// Creates a Cellar collection annotation, optionally overriding the
+  /// collection [name].
   const CellarCollection({this.name});
 }

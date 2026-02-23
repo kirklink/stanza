@@ -16,6 +16,7 @@ class UpdateQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   bool _returning = false;
   bool _allowUnsafe = false;
 
+  /// Creates an UPDATE query for [table] setting the given column values.
   UpdateQuery(super.table, this._values);
 
   /// Adds a WHERE condition. Multiple calls are combined with AND.

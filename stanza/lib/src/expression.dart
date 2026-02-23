@@ -29,6 +29,7 @@ class Comparison extends Expression {
   /// The value to compare against.
   final Object? value;
 
+  /// Creates a comparison of [column] [op] [value].
   const Comparison(this.column, this.op, this.value);
 
   @override
@@ -46,6 +47,7 @@ class And extends Expression {
   /// The right-hand expression.
   final Expression right;
 
+  /// Creates an AND expression from [left] and [right].
   const And(this.left, this.right);
 
   @override
@@ -61,6 +63,7 @@ class Or extends Expression {
   /// The right-hand expression.
   final Expression right;
 
+  /// Creates an OR expression from [left] and [right].
   const Or(this.left, this.right);
 
   @override
@@ -73,6 +76,7 @@ class Not extends Expression {
   /// The expression to negate.
   final Expression inner;
 
+  /// Creates a NOT expression negating [inner].
   const Not(this.inner);
 
   @override
@@ -88,6 +92,7 @@ class InList extends Expression {
   /// The list of values to test membership against.
   final List<Object?> values;
 
+  /// Creates an IN list test for [column] against [values].
   const InList(this.column, this.values);
 
   @override
@@ -105,6 +110,7 @@ class NotInList extends Expression {
   /// The list of values to test exclusion against.
   final List<Object?> values;
 
+  /// Creates a NOT IN list test for [column] against [values].
   const NotInList(this.column, this.values);
 
   @override
@@ -119,6 +125,7 @@ class IsNull extends Expression {
   /// The qualified column name.
   final String column;
 
+  /// Creates an IS NULL check for [column].
   const IsNull(this.column);
 
   @override
@@ -130,6 +137,7 @@ class IsNotNull extends Expression {
   /// The qualified column name.
   final String column;
 
+  /// Creates an IS NOT NULL check for [column].
   const IsNotNull(this.column);
 
   @override
@@ -147,6 +155,7 @@ class Between extends Expression {
   /// The upper bound of the range (inclusive).
   final Object? high;
 
+  /// Creates a BETWEEN range test for [column] from [low] to [high].
   const Between(this.column, this.low, this.high);
 
   @override
@@ -168,6 +177,7 @@ class Like extends Expression {
   /// Whether to use case-sensitive `LIKE` (true) or `ILIKE` (false).
   final bool caseSensitive;
 
+  /// Creates a LIKE/ILIKE pattern match for [column] against [pattern].
   const Like(this.column, this.pattern, {this.caseSensitive = true});
 
   @override
@@ -191,6 +201,7 @@ class ColumnComparison extends Expression {
   /// The qualified right-hand column name.
   final String rightColumn;
 
+  /// Creates a column-to-column comparison: [leftColumn] [op] [rightColumn].
   const ColumnComparison(this.leftColumn, this.op, this.rightColumn);
 
   @override
@@ -211,6 +222,7 @@ class FullTextMatch extends Expression {
   /// The tsquery function name (e.g. `'plainto_tsquery'`).
   final String queryFunction;
 
+  /// Creates a full-text search match on [column] for [query].
   const FullTextMatch(
     this.column,
     this.query, {
@@ -235,6 +247,7 @@ class TrigramSimilar extends Expression {
   /// The text to compare for similarity.
   final String text;
 
+  /// Creates a trigram similarity test for [column] against [text].
   const TrigramSimilar(this.column, this.text);
 
   @override
@@ -254,6 +267,7 @@ class TrigramWordSimilar extends Expression {
   /// The text to compare for word-level similarity.
   final String text;
 
+  /// Creates a word-level trigram similarity test for [column] against [text].
   const TrigramWordSimilar(this.column, this.text);
 
   @override
@@ -275,6 +289,7 @@ class Fts5Match extends Expression {
   /// The FTS5 query string (e.g. `'database optimization'`).
   final String query;
 
+  /// Creates an FTS5 MATCH expression for [ftsTableName] with [query].
   Fts5Match(this.ftsTableName, this.query) {
     assertValidIdentifier(ftsTableName, 'ftsTableName');
   }
@@ -295,6 +310,7 @@ class SubqueryIn extends Expression {
   final String column;
   final String Function(ParameterCollector) _subquerySql;
 
+  /// Creates a subquery IN expression for [column].
   SubqueryIn(this.column, this._subquerySql);
 
   @override
@@ -313,6 +329,7 @@ class SubqueryNotIn extends Expression {
   final String column;
   final String Function(ParameterCollector) _subquerySql;
 
+  /// Creates a subquery NOT IN expression for [column].
   SubqueryNotIn(this.column, this._subquerySql);
 
   @override
@@ -335,6 +352,7 @@ class AggregateComparison extends Expression {
   /// The value to compare the aggregate result against.
   final Object value;
 
+  /// Creates a comparison of [aggregate] [op] [value] for HAVING clauses.
   const AggregateComparison(this.aggregate, this.op, this.value);
 
   @override
@@ -355,6 +373,7 @@ class AggregateBetween extends Expression {
   /// The upper bound (inclusive).
   final num high;
 
+  /// Creates a BETWEEN range test on [aggregate] from [low] to [high].
   const AggregateBetween(this.aggregate, this.low, this.high);
 
   @override
@@ -376,6 +395,7 @@ class Raw extends Expression {
   /// Named values to substitute for placeholders in [sql].
   final Map<String, Object?>? paramValues;
 
+  /// Creates a raw SQL expression from [sql] with optional [paramValues].
   const Raw(this.sql, {this.paramValues});
 
   @override
@@ -418,6 +438,7 @@ class AggregateExpression {
   /// Optional alias for the SELECT list (e.g. `'post_count'`).
   final String? alias;
 
+  /// Creates an aggregate expression: [function]([columnSql]).
   const AggregateExpression(this.function, this.columnSql, {this.alias});
 
   /// Renders the function call: `COUNT(users.id)`.
@@ -464,5 +485,6 @@ class AggregateExpression {
 
 /// `COUNT(*)` — counts all rows regardless of column values.
 class CountAll extends AggregateExpression {
+  /// Creates a `COUNT(*)` aggregate, optionally with an [alias].
   const CountAll({String? alias}) : super('COUNT', '*', alias: alias);
 }

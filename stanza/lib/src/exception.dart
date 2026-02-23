@@ -8,6 +8,7 @@ class StanzaException implements Exception {
   /// The underlying exception, if any (typically a `PgException`).
   final Object? cause;
 
+  /// Creates a Stanza exception with [message] and optional root [cause].
   const StanzaException(this.message, {this.cause});
 
   @override

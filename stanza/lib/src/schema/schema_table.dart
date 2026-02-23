@@ -14,6 +14,8 @@ class SchemaTable {
   /// All constraints (PK, unique, FK).
   final List<SchemaConstraint> constraints;
 
+  /// Creates a schema table with the given [name], [columns], and optional
+  /// [constraints].
   const SchemaTable({
     required this.name,
     required this.columns,

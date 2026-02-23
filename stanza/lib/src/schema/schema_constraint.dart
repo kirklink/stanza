@@ -30,6 +30,7 @@ class SchemaConstraint {
   /// The ON DELETE action (e.g. `'CASCADE'`, `'SET NULL'`).
   final String? onDelete;
 
+  /// Creates a schema constraint of the given [kind] on [columns].
   const SchemaConstraint({
     required this.name,
     required this.kind,

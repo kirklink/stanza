@@ -21,6 +21,7 @@ abstract class Column<T> {
   /// The table name for qualified references (e.g. `'users'`).
   final String table;
 
+  /// Creates a column reference with the given [name] and [table].
   const Column(this.name, this.table);
 
   /// Fully qualified column name: `table.column`.
@@ -93,6 +94,7 @@ abstract class Column<T> {
 ///
 /// Provides numeric comparison operations in addition to the universal ones.
 class IntColumn extends Column<int> {
+  /// Creates an integer column reference with the given [name] and [table].
   const IntColumn(super.name, super.table);
 
   /// Greater than: `column > @value`.
@@ -122,6 +124,7 @@ class IntColumn extends Column<int> {
 ///
 /// Provides numeric comparison operations in addition to the universal ones.
 class DoubleColumn extends Column<double> {
+  /// Creates a double column reference with the given [name] and [table].
   const DoubleColumn(super.name, super.table);
 
   /// Greater than: `column > @value`.
@@ -152,6 +155,7 @@ class DoubleColumn extends Column<double> {
 ///
 /// Provides pattern matching and text search operations.
 class StringColumn extends Column<String> {
+  /// Creates a string column reference with the given [name] and [table].
   const StringColumn(super.name, super.table);
 
   /// Case-sensitive pattern match: `column LIKE @pattern`.
@@ -209,6 +213,7 @@ class StringColumn extends Column<String> {
 
 /// A column holding `bool` values.
 class BoolColumn extends Column<bool> {
+  /// Creates a boolean column reference with the given [name] and [table].
   const BoolColumn(super.name, super.table);
 
   /// Check for true: `column = true`.
@@ -222,6 +227,7 @@ class BoolColumn extends Column<bool> {
 ///
 /// Provides temporal comparison operations.
 class DateTimeColumn extends Column<DateTime> {
+  /// Creates a date/time column reference with the given [name] and [table].
   const DateTimeColumn(super.name, super.table);
 
   /// Strictly before: `column < @value`.

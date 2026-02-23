@@ -15,6 +15,7 @@ class InsertQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   bool _returning = false;
   _ConflictClause? _conflict;
 
+  /// Creates an INSERT query for [table].
   InsertQuery(super.table);
 
   /// Sets the values to insert (from a companion's `toRow()`).

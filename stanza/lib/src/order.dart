@@ -6,6 +6,7 @@ class OrderExpression {
   /// Whether to sort in descending order.
   final bool descending;
 
+  /// Creates an ORDER BY expression for [column], ascending by default.
   const OrderExpression(this.column, {this.descending = false});
 
   /// Renders to SQL fragment (e.g. `users.created_at DESC`).

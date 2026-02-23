@@ -15,6 +15,7 @@ class DeleteQuery<T, D extends TableDescriptor<T>> extends Query<T, D> {
   bool _returning = false;
   bool _allowUnsafe = false;
 
+  /// Creates a DELETE query for [table].
   DeleteQuery(super.table);
 
   /// Adds a WHERE condition. Multiple calls are combined with AND.

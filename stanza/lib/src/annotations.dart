@@ -17,6 +17,7 @@ class Entity {
   /// Override the table name. Defaults to snake_case of the class name.
   final String? name;
 
+  /// Creates an entity annotation, optionally overriding the table [name].
   const Entity({this.name});
 }
 
@@ -59,6 +60,7 @@ class Field {
   /// code generation to set `fts: true` on the corresponding field.
   final bool fts;
 
+  /// Creates a field annotation with optional column configuration.
   const Field({
     this.name,
     this.length,
@@ -77,6 +79,7 @@ class PrimaryKey {
   /// Whether the primary key auto-increments (SERIAL/BIGSERIAL).
   final bool autoIncrement;
 
+  /// Creates a primary key annotation, with [autoIncrement] defaulting to true.
   const PrimaryKey({this.autoIncrement = true});
 }
 
@@ -96,6 +99,8 @@ class References {
   /// Referential action on delete: `'CASCADE'`, `'SET NULL'`, `'RESTRICT'`.
   final String? onDelete;
 
+  /// Creates a foreign key reference to [entity], optionally specifying the
+  /// target [column] and [onDelete] action.
   const References(this.entity, {this.column, this.onDelete});
 }
 
@@ -114,5 +119,6 @@ class Database {
   /// All entity types managed by this database.
   final List<Type> entities;
 
+  /// Creates a database annotation listing the managed [entities].
   const Database({required this.entities});
 }
