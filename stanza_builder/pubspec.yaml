@@ -7,6 +7,7 @@ description: >-
   Generates type-safe table descriptors, insert/update companions,
   and row mappers from annotated Dart classes.
 version: 2.0.0-dev.1
+publish_to: none
 topics:
   - postgresql
   - query-builder
