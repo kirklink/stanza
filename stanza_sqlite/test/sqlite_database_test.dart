@@ -378,7 +378,7 @@ void main() {
       // Database should still be usable (ownsDatabase defaults to false)
       final row = externalDb.select('SELECT count(*) as cnt FROM test_users');
       expect(row.first['cnt'], 1);
-      externalDb.dispose();
+      externalDb.close();
     });
 
     test('close with ownsDatabase: false does NOT dispose database', () async {
@@ -389,7 +389,7 @@ void main() {
 
       // Database still works — not disposed
       externalDb.execute('SELECT 1');
-      externalDb.dispose();
+      externalDb.close();
     });
 
     test('close with ownsDatabase: true disposes database', () async {
@@ -431,7 +431,7 @@ void main() {
       expect(result.entities.first.createdAt, now);
 
       await adapter.close();
-      externalDb.dispose();
+      externalDb.close();
     });
   });
 }

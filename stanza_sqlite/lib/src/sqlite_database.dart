@@ -82,7 +82,7 @@ class StanzaSqlite implements DatabaseAdapter {
           affectedRows: _db.updatedRows,
         );
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     } on sqlite3.SqliteException catch (e) {
       throw StanzaException('Query execution failed', cause: e);
@@ -107,7 +107,7 @@ class StanzaSqlite implements DatabaseAdapter {
             result.map((row) => Map<String, dynamic>.from(row)).toList();
         return QueryResult(rows: rows, affectedRows: _db.updatedRows);
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     } on sqlite3.SqliteException catch (e) {
       throw StanzaException('Raw query execution failed', cause: e);
@@ -146,7 +146,7 @@ class StanzaSqlite implements DatabaseAdapter {
 
   @override
   Future<void> close() async {
-    if (_ownsDatabase) _db.dispose();
+    if (_ownsDatabase) _db.close();
   }
 
   /// Prefixes parameter keys and converts Dart types to SQLite-compatible values.
@@ -236,7 +236,7 @@ class SqliteSession implements SessionAdapter {
           affectedRows: _db.updatedRows,
         );
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     } on sqlite3.SqliteException catch (e) {
       throw StanzaException('Query execution failed', cause: e);
@@ -261,7 +261,7 @@ class SqliteSession implements SessionAdapter {
             result.map((row) => Map<String, dynamic>.from(row)).toList();
         return QueryResult(rows: rows, affectedRows: _db.updatedRows);
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     } on sqlite3.SqliteException catch (e) {
       throw StanzaException('Raw query execution failed', cause: e);
