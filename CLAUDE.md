@@ -4,6 +4,14 @@ Type-safe, AI-first database-agnostic ORM for Dart. Four packages: `stanza` (cor
 
 - For consumer-facing API reference, see [docs/guide.md](docs/guide.md)
 
+## Documentation
+
+When modifying this package, keep all package docs current:
+- `CLAUDE.md` — update if internals, architecture, or file structure change
+- `docs/guide.md` — update if public API surface changes
+- `docs/skill/SKILL.md` — update if guide sections or trigger keywords change
+- `README.md` — update if the package purpose or quick start changes
+
 ## Commands
 
 ```bash
