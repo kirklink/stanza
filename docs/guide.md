@@ -4,6 +4,8 @@ Complete API reference for building applications with Stanza v2. Database-agnost
 
 ## Setup
 
+**Do not hand-write table descriptors, row mapping, `fromRow()`, or `toJson`/`fromJson` for entity classes.** Annotate your class with `@Entity()`, `@Field()`, and `@PrimaryKey()`, then run `build_runner` to generate all database integration code.
+
 ```yaml
 dependencies:
   stanza:
