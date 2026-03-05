@@ -1,5 +1,5 @@
 import 'package:cellar/cellar.dart';
-import 'package:stanza/stanza.dart' hide Field;
+import 'package:stanza/stanza.dart';
 import 'package:stanza_sqlite/stanza_sqlite.dart';
 import 'package:test/test.dart';
 
@@ -104,24 +104,25 @@ class _EpisodeTable extends TableDescriptor<_Episode> {
       );
 }
 
+/// Collection constant — mirrors what @StanzaEntity(cellar: true) would generate.
+const _episodesCollection = CellarCollection(
+  name: 'episodes',
+  fields: [
+    CellarField.text('content', fts: true),
+    CellarField.text('type'),
+    CellarField.real('importance'),
+    CellarField.bool('consolidated', defaultValue: false),
+  ],
+);
+
 void main() {
   final episodeTable = _EpisodeTable();
 
   late Cellar cellar;
   late StanzaSqlite stanza;
 
-  final episodesCollection = Collection(
-    name: 'episodes',
-    fields: [
-      Field.text('content', fts: true),
-      Field.text('type'),
-      Field.real('importance'),
-      Field.bool('consolidated', defaultValue: false),
-    ],
-  );
-
   setUp(() {
-    cellar = Cellar.memory(collections: [episodesCollection]);
+    cellar = Cellar.memory(collections: [_episodesCollection]);
     stanza = StanzaSqlite.fromDatabase(cellar.database);
   });
 

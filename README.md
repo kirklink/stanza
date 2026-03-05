@@ -23,7 +23,7 @@ Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimiz
 - Trigram similarity: fuzzy matching with `pg_trgm` operators (PostgreSQL)
 - Subqueries: `WHERE col IN (SELECT ...)`
 - ON CONFLICT: upsert with DO UPDATE or DO NOTHING
-- Code generation: `@Entity` + `build_runner` generates table descriptors, companions, schema metadata
+- Code generation: `@StanzaEntity` + `build_runner` generates table descriptors, companions, schema metadata
 - Schema management: diff code vs database, generate forward-only SQL migrations, apply with checksums
 - Database adapters: pluggable architecture — PostgreSQL and SQLite adapters included
 - Connection pooling: wraps `postgres` v3 with instance caching (via `stanza_postgres`)
@@ -37,7 +37,7 @@ Type-safe, AI-first ORM for Dart. One canonical way to do everything — optimiz
 | `stanza` | Core ORM — annotations, columns, expressions, query builder, schema types |
 | `stanza_postgres` | PostgreSQL adapter — connection pool, introspection, migrations, CLI |
 | `stanza_sqlite` | SQLite adapter — file/memory databases, introspection, migrations, CLI |
-| `stanza_builder` | Code generation — `@Entity` → table descriptors, companions, schema |
+| `stanza_builder` | Code generation — `@StanzaEntity` → table descriptors, companions, schema |
 
 ## Quick Start
 
@@ -48,17 +48,17 @@ import 'package:stanza/stanza.dart';
 
 part 'user.g.dart';
 
-@Entity()
+@StanzaEntity()
 class User {
-  @PrimaryKey(autoIncrement: true)
+  @StanzaKey(autoIncrement: true)
   final int id;
 
-  @Field(length: 100, unique: true)
+  @StanzaField(length: 100, unique: true)
   final String email;
 
   final String name;
 
-  @Field(defaultValue: 'now()')
+  @StanzaField(defaultValue: 'now()')
   final DateTime createdAt;
 
   const User({required this.id, required this.email, required this.name, required this.createdAt});

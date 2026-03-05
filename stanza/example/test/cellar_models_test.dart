@@ -12,129 +12,85 @@ void main() {
     settings = $SettingTable();
   });
 
-  group('Episode \$cellarSchema', () {
+  group('Episode \$episodeCollection', () {
     test('collection name matches table name', () {
-      final schema = episodes.$cellarSchema;
-      expect(schema['name'], 'episodes');
+      expect($episodeCollection.name, 'episodes');
     });
 
     test('system fields (id, created_at, updated_at) are excluded', () {
-      final schema = episodes.$cellarSchema;
-      final fields = schema['fields'] as List;
-      final fieldNames = fields.map((f) => (f as Map)['name']).toList();
+      final fieldNames = $episodeCollection.fields.map((f) => f.name).toList();
       expect(fieldNames, isNot(contains('id')));
       expect(fieldNames, isNot(contains('created_at')));
       expect(fieldNames, isNot(contains('updated_at')));
     });
 
     test('user fields are included with correct types', () {
-      final schema = episodes.$cellarSchema;
-      final fields = schema['fields'] as List;
       final fieldMap = {
-        for (final f in fields) (f as Map)['name']: f,
+        for (final f in $episodeCollection.fields) f.name: f,
       };
 
-      expect(fieldMap['content']!['type'], 'text');
-      expect(fieldMap['type']!['type'], 'text');
-      expect(fieldMap['importance']!['type'], 'real');
-      expect(fieldMap['consolidated']!['type'], 'bool');
+      expect(fieldMap['content']!.type, CellarFieldType.text);
+      expect(fieldMap['type']!.type, CellarFieldType.text);
+      expect(fieldMap['importance']!.type, CellarFieldType.real);
+      expect(fieldMap['consolidated']!.type, CellarFieldType.bool);
     });
 
     test('fts annotation is propagated for text fields', () {
-      final schema = episodes.$cellarSchema;
-      final fields = schema['fields'] as List;
       final fieldMap = {
-        for (final f in fields) (f as Map)['name']: f,
+        for (final f in $episodeCollection.fields) f.name: f,
       };
 
-      expect(fieldMap['content']!['fts'], true);
-      // Non-FTS fields should not have 'fts' key
-      expect(fieldMap['type']!.containsKey('fts'), isFalse);
-      expect(fieldMap['importance']!.containsKey('fts'), isFalse);
+      expect(fieldMap['content']!.fts, true);
+      expect(fieldMap['type']!.fts, false);
+      expect(fieldMap['importance']!.fts, false);
     });
 
-    test('non-nullable fields omit nullable key', () {
-      final schema = episodes.$cellarSchema;
-      final fields = schema['fields'] as List;
-      for (final f in fields) {
-        expect((f as Map).containsKey('nullable'), isFalse,
-            reason: '${f['name']} should not have nullable key');
+    test('non-nullable fields have nullable: false', () {
+      for (final f in $episodeCollection.fields) {
+        expect(f.nullable, isFalse, reason: '${f.name} should not be nullable');
       }
     });
 
     test('no indexes when no unique fields', () {
-      final schema = episodes.$cellarSchema;
-      expect(schema.containsKey('indexes'), isFalse);
+      expect($episodeCollection.indexes, isEmpty);
     });
 
-    test('round-trips through Collection.fromJson', () {
-      final collection = Collection.fromJson(episodes.$cellarSchema);
-      expect(collection.name, 'episodes');
-      expect(collection.fields, hasLength(4));
-      expect(collection.fields[0].name, 'content');
-      expect(collection.fields[0].type, FieldType.text);
-      expect(collection.fields[0].fts, true);
-      expect(collection.fields[1].name, 'type');
-      expect(collection.fields[1].type, FieldType.text);
-      expect(collection.fields[1].fts, false);
-      expect(collection.fields[2].name, 'importance');
-      expect(collection.fields[2].type, FieldType.real);
-      expect(collection.fields[3].name, 'consolidated');
-      expect(collection.fields[3].type, FieldType.bool);
-      expect(collection.indexes, isEmpty);
+    test('collection is usable with Cellar.memory()', () {
+      final cellar = Cellar.memory(collections: [$episodeCollection]);
+      expect(cellar.schema('episodes'), isNotNull);
+      cellar.close();
     });
   });
 
-  group('Setting \$cellarSchema', () {
-    test('custom collection name from @CellarCollection(name:)', () {
-      final schema = settings.$cellarSchema;
-      expect(schema['name'], 'app_settings');
+  group('Setting \$settingCollection', () {
+    test('custom collection name from @StanzaEntity(name:)', () {
+      expect($settingCollection.name, 'app_settings');
     });
 
     test('system fields excluded, user fields included', () {
-      final schema = settings.$cellarSchema;
-      final fields = schema['fields'] as List;
-      final fieldNames = fields.map((f) => (f as Map)['name']).toList();
+      final fieldNames = $settingCollection.fields.map((f) => f.name).toList();
       expect(fieldNames, ['key', 'value']);
     });
 
     test('nullable field is marked', () {
-      final schema = settings.$cellarSchema;
-      final fields = schema['fields'] as List;
       final fieldMap = {
-        for (final f in fields) (f as Map)['name']: f,
+        for (final f in $settingCollection.fields) f.name: f,
       };
 
-      expect(fieldMap['key']!.containsKey('nullable'), isFalse);
-      expect(fieldMap['value']!['nullable'], true);
+      expect(fieldMap['key']!.nullable, isFalse);
+      expect(fieldMap['value']!.nullable, isTrue);
     });
 
     test('unique constraint generates indexes', () {
-      final schema = settings.$cellarSchema;
-      final indexes = schema['indexes'] as List;
-      expect(indexes, hasLength(1));
-      final idx = indexes[0] as Map;
-      expect(idx['type'], 'unique');
-      expect(idx['fields'], ['key']);
-    });
-
-    test('round-trips through Collection.fromJson', () {
-      final collection = Collection.fromJson(settings.$cellarSchema);
-      expect(collection.name, 'app_settings');
-      expect(collection.fields, hasLength(2));
-      expect(collection.fields[0].name, 'key');
-      expect(collection.fields[0].nullable, false);
-      expect(collection.fields[1].name, 'value');
-      expect(collection.fields[1].nullable, true);
-      expect(collection.indexes, hasLength(1));
-      expect(collection.indexes[0].fields, ['key']);
+      expect($settingCollection.indexes, hasLength(1));
+      expect($settingCollection.indexes[0].fields, ['key']);
     });
   });
 
   group('generated table descriptor (Cellar entity)', () {
-    test('table name is pluralized snake_case', () {
+    test('table name matches collection name', () {
       expect(episodes.tableName, 'episodes');
-      expect(settings.tableName, 'settings');
+      expect(settings.tableName, 'app_settings');
     });
 
     test('columns include system fields', () {

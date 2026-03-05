@@ -10,23 +10,22 @@ import 'cellar_type_mapping.dart';
 import 'type_mapping.dart';
 
 const _fieldChecker =
-    TypeChecker.fromUrl('package:stanza/src/annotations.dart#Field');
+    TypeChecker.fromUrl('package:stanza/src/annotations.dart#StanzaField');
 const _pkChecker =
-    TypeChecker.fromUrl('package:stanza/src/annotations.dart#PrimaryKey');
+    TypeChecker.fromUrl('package:stanza/src/annotations.dart#StanzaKey');
 const _refChecker =
-    TypeChecker.fromUrl('package:stanza/src/annotations.dart#References');
-const _cellarChecker = TypeChecker.fromUrl(
-    'package:stanza/src/cellar_annotations.dart#CellarCollection');
+    TypeChecker.fromUrl('package:stanza/src/annotations.dart#StanzaRef');
 
-/// Generates table descriptors, companions, and mappers from `@Entity` classes.
+/// Generates table descriptors, companions, and mappers from `@StanzaEntity` classes.
 ///
-/// For each `@Entity`-annotated class, generates:
+/// For each `@StanzaEntity`-annotated class, generates:
 /// - `$<Name>Table` — a [TableDescriptor] with typed columns and `fromRow()`
 /// - `<Name>Insert` — insert companion (excludes auto-increment PK)
 /// - `<Name>Update` — update companion (all writable fields optional)
 /// - `<Name>CopyWith` — extension with `copyWith()` method
-class EntityGenerator extends GeneratorForAnnotation<Entity> {
-  /// Processes a single `@Entity` class and returns the generated source code.
+/// - (optional) `$<name>Collection` — Cellar collection constant (when `cellar: true`)
+class EntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
+  /// Processes a single `@StanzaEntity` class and returns the generated source code.
   @override
   String generateForAnnotatedElement(
     Element element,
@@ -35,7 +34,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
   ) {
     if (element is! ClassElement) {
       throw InvalidGenerationSourceError(
-        '@Entity can only be applied to classes.',
+        '@StanzaEntity can only be applied to classes.',
         element: element,
       );
     }
@@ -47,7 +46,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
 
     if (fields.isEmpty) {
       throw InvalidGenerationSourceError(
-        '@Entity class $className has no valid fields.',
+        '@StanzaEntity class $className has no valid fields.',
         element: element,
       );
     }
@@ -55,13 +54,13 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     final pk = fields.where((f) => f.isPrimaryKey).toList();
     if (pk.isEmpty) {
       throw InvalidGenerationSourceError(
-        '@Entity class $className must have exactly one @PrimaryKey field.',
+        '@StanzaEntity class $className must have exactly one @StanzaKey field.',
         element: element,
       );
     }
     if (pk.length > 1) {
       throw InvalidGenerationSourceError(
-        '@Entity class $className has ${pk.length} @PrimaryKey fields. Only one is allowed.',
+        '@StanzaEntity class $className has ${pk.length} @StanzaKey fields. Only one is allowed.',
         element: element,
       );
     }
@@ -69,13 +68,18 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     final tableName =
         entityAnnotation.name ?? '${ReCase(className).snakeCase}s';
 
-    final cellarAnnotation = _readCellarCollectionAnnotation(classEl);
-
     final buf = StringBuffer();
-    _writeTableDescriptor(buf, className, tableName, fields, cellarAnnotation);
+    _writeTableDescriptor(buf, className, tableName, fields);
     _writeInsertCompanion(buf, className, fields);
     _writeUpdateCompanion(buf, className, fields);
     _writeCopyWith(buf, className, fields);
+
+    // Emit Cellar collection constant when cellar: true
+    if (entityAnnotation.cellar) {
+      buf.writeln();
+      _writeCellarCollection(buf, className, tableName, fields);
+    }
+
     return buf.toString();
   }
 
@@ -86,19 +90,7 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
       name: reader.read('name').isNull
           ? null
           : reader.read('name').stringValue,
-    );
-  }
-
-  _CellarCollectionAnnotation? _readCellarCollectionAnnotation(
-      ClassElement classEl) {
-    final annotation = _cellarChecker.firstAnnotationOf(classEl);
-    if (annotation == null) return null;
-
-    final reader = ConstantReader(annotation);
-    return _CellarCollectionAnnotation(
-      name: reader.read('name').isNull
-          ? null
-          : reader.read('name').stringValue,
+      cellar: reader.read('cellar').boolValue,
     );
   }
 
@@ -115,14 +107,14 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
         if (!field.isFinal && field.setter == null) continue;
       }
 
-      // Check for @Field(ignore: true)
+      // Check for @StanzaField(ignore: true)
       final fieldAnnotation = _readFieldAnnotation(field);
       if (fieldAnnotation?.ignore == true) continue;
 
-      // Check for @PrimaryKey
+      // Check for @StanzaKey
       final pkAnnotation = _readPrimaryKeyAnnotation(field);
 
-      // Check for @References
+      // Check for @StanzaRef
       final refAnnotation = _readReferencesAnnotation(field);
 
       final dartTypeName = _baseDartType(field.type);
@@ -216,7 +208,6 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     String className,
     String tableName,
     List<_ResolvedField> fields,
-    _CellarCollectionAnnotation? cellarAnnotation,
   ) {
     final tableClass = '\$${className}Table';
     final pkField = fields.firstWhere((f) => f.isPrimaryKey);
@@ -258,12 +249,6 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
 
     // $schema
     _writeSchema(buf, tableName, fields);
-
-    // $cellarSchema (only when @CellarCollection is present)
-    if (cellarAnnotation != null) {
-      buf.writeln();
-      _writeCellarSchema(buf, tableName, fields, cellarAnnotation);
-    }
 
     buf.writeln('}');
     buf.writeln();
@@ -446,18 +431,19 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
     buf.writeln('  );');
   }
 
-  // -- Cellar schema generation --
+  // -- Cellar collection generation --
 
-  /// Cellar system fields — excluded from the generated Collection.fields.
+  /// Cellar system fields — excluded from the generated CellarCollection.fields.
   static const _cellarSystemFields = {'id', 'created_at', 'updated_at'};
 
-  void _writeCellarSchema(
+  void _writeCellarCollection(
     StringBuffer buf,
+    String className,
     String tableName,
     List<_ResolvedField> fields,
-    _CellarCollectionAnnotation cellarAnnotation,
   ) {
-    final collectionName = cellarAnnotation.name ?? tableName;
+    final collectionName = tableName;
+    final varName = '\$${ReCase(className).camelCase}Collection';
 
     // Filter out Cellar system fields
     final userFields = fields
@@ -465,45 +451,44 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
         .toList();
 
     // Collect single-column unique constraints for indexes
-    final uniqueFields =
-        userFields.where((f) => f.isUnique).toList();
+    final uniqueFields = userFields.where((f) => f.isUnique).toList();
 
-    buf.writeln('  /// Cellar collection schema for `Collection.fromJson()`.');
-    buf.writeln('  Map<String, dynamic> get \$cellarSchema => const {');
-    buf.writeln("    'name': '$collectionName',");
-    buf.writeln("    'fields': [");
+    buf.writeln('/// Cellar collection schema for `$className`.');
+    buf.writeln('///');
+    buf.writeln('/// Pass to `Cellar.open(collections: [...])` for table management.');
+    buf.writeln('const $varName = CellarCollection(');
+    buf.writeln("  name: '$collectionName',");
+    buf.writeln('  fields: [');
 
     for (final field in userFields) {
-      final cellarType = cellarFieldTypeName(field.dartType);
-      buf.write("      {'name': '${field.columnName}', 'type': '$cellarType'");
-      if (field.isNullable) {
-        buf.write(", 'nullable': true");
+      final constructor = cellarFieldConstructor(field.dartType);
+      buf.write("    $constructor('${field.columnName}'");
+      if (field.fts && field.dartType == 'String') {
+        buf.write(', fts: true');
       }
-      if (field.fts && cellarType == 'text') {
-        buf.write(", 'fts': true");
+      if (field.isNullable) {
+        buf.write(', nullable: true');
       }
       if (field.defaultValue != null) {
-        // Only include literal defaults (not SQL expressions like 'now()')
         final dv = field.defaultValue!;
         if (_isCellarLiteralDefault(dv, field.dartType)) {
-          buf.write(", 'default': $dv");
+          buf.write(', defaultValue: $dv');
         }
       }
-      buf.writeln('},');
+      buf.writeln('),');
     }
 
-    buf.writeln('    ],');
+    buf.writeln('  ],');
 
     if (uniqueFields.isNotEmpty) {
-      buf.writeln("    'indexes': [");
+      buf.writeln('  indexes: [');
       for (final field in uniqueFields) {
-        buf.writeln(
-            "      {'type': 'unique', 'fields': ['${field.columnName}']},");
+        buf.writeln("    CellarIndex(['${field.columnName}']),");
       }
-      buf.writeln('    ],');
+      buf.writeln('  ],');
     }
 
-    buf.writeln('  };');
+    buf.writeln(');');
   }
 
   /// Returns true if the default value is a Dart literal suitable for Cellar,
@@ -546,12 +531,8 @@ class EntityGenerator extends GeneratorForAnnotation<Entity> {
 
 class _EntityAnnotation {
   final String? name;
-  _EntityAnnotation({this.name});
-}
-
-class _CellarCollectionAnnotation {
-  final String? name;
-  _CellarCollectionAnnotation({this.name});
+  final bool cellar;
+  _EntityAnnotation({this.name, this.cellar = false});
 }
 
 class _FieldAnnotation {

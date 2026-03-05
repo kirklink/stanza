@@ -10,7 +10,7 @@ import 'src/entity_generator.dart';
 
 /// Creates the Stanza entity builder.
 ///
-/// Processes `@Entity` annotations and generates table descriptors,
+/// Processes `@StanzaEntity` annotations and generates table descriptors,
 /// insert/update companions, and `copyWith` extensions.
 Builder stanzaBuilder(BuilderOptions options) =>
     SharedPartBuilder([EntityGenerator()], 'stanza');

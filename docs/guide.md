@@ -4,7 +4,7 @@ Complete API reference for building applications with Stanza v2. Database-agnost
 
 ## Setup
 
-**Do not hand-write table descriptors, row mapping, `fromRow()`, or `toJson`/`fromJson` for entity classes.** Annotate your class with `@Entity()`, `@Field()`, and `@PrimaryKey()`, then run `build_runner` to generate all database integration code.
+**Do not hand-write table descriptors, row mapping, `fromRow()`, or `toJson`/`fromJson` for entity classes.** Annotate your class with `@StanzaEntity()`, `@StanzaField()`, and `@StanzaKey()`, then run `build_runner` to generate all database integration code.
 
 ```yaml
 dependencies:
@@ -44,17 +44,17 @@ import 'package:stanza/stanza.dart';
 
 part 'user.g.dart';
 
-@Entity()
+@StanzaEntity()
 class User {
-  @PrimaryKey(autoIncrement: true)
+  @StanzaKey(autoIncrement: true)
   final int id;
 
-  @Field(length: 100, unique: true)
+  @StanzaField(length: 100, unique: true)
   final String email;
 
   final String name;
 
-  @Field(defaultValue: 'now()')
+  @StanzaField(defaultValue: 'now()')
   final DateTime createdAt;
 
   const User({required this.id, required this.email, required this.name, required this.createdAt});
@@ -94,54 +94,55 @@ final (:sql, :parameters) = results.build();
 
 Import: `import 'package:stanza/annotations.dart';` (or `package:stanza/stanza.dart`)
 
-### @Entity
+### @StanzaEntity
 
 Marks a class as a database entity.
 
 ```dart
-const Entity({String? name})
+const StanzaEntity({String? name, bool cellar = false})
 ```
 
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
 | `name` | `String?` | `null` | Override table name. Default: pluralized snake_case of class name (`User` → `users`) |
+| `cellar` | `bool` | `false` | When `true`, generates a top-level `const $<name>Collection = CellarCollection(...)` constant for use with `package:cellar` |
 
-### @PrimaryKey
+### @StanzaKey
 
 Marks a field as the primary key.
 
 ```dart
-const PrimaryKey({bool autoIncrement = true})
+const StanzaKey({bool autoIncrement = true})
 ```
 
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
 | `autoIncrement` | `bool` | `true` | Use SERIAL type for auto-incrementing IDs |
 
-### @Field
+### @StanzaField
 
 Configures a field's database column.
 
 ```dart
-const Field({String? name, int? length, bool unique = false, String? defaultValue, String? type, bool ignore = false, bool fts = false})
+const StanzaField({String? name, int? length, bool unique = false, String? defaultValue, String? type, bool ignore = false, bool fts = false})
 ```
 
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
 | `name` | `String?` | `null` | Override column name. Default: snake_case of field name |
-| `length` | `int?` | `null` | VARCHAR length: `@Field(length: 100)` → `varchar(100)` |
+| `length` | `int?` | `null` | VARCHAR length: `@StanzaField(length: 100)` → `varchar(100)` |
 | `unique` | `bool` | `false` | Add UNIQUE constraint |
 | `defaultValue` | `String?` | `null` | SQL DEFAULT expression: `'now()'`, `'true'` |
 | `type` | `String?` | `null` | Override SQL type: `'jsonb'`, `'uuid'` |
 | `ignore` | `bool` | `false` | Skip field in generated code |
-| `fts` | `bool` | `false` | Mark field for full-text search indexing (used by `@CellarCollection` schema generation) |
+| `fts` | `bool` | `false` | Mark field for full-text search indexing (used by `@StanzaEntity(cellar: true)` schema generation) |
 
-### @References
+### @StanzaRef
 
 Declares a foreign key relationship.
 
 ```dart
-const References(Type entity, {String? column, String? onDelete})
+const StanzaRef(Type entity, {String? column, String? onDelete})
 ```
 
 | Parameter | Type | Default | Purpose |
@@ -150,42 +151,31 @@ const References(Type entity, {String? column, String? onDelete})
 | `column` | `String?` | `'id'` | Column on referenced table |
 | `onDelete` | `String?` | `null` | Referential action: `'CASCADE'`, `'SET NULL'`, `'RESTRICT'` |
 
-### @Database
+### @StanzaDatabase
 
 Marks a class as the database entry point (for future use with generated `$AppDatabase`).
 
 ```dart
-const Database({required List<Type> entities})
+const StanzaDatabase({required List<Type> entities})
 ```
 
-### @CellarCollection
+### Cellar Integration (`cellar: true`)
 
-Opt-in annotation that generates a `$cellarSchema` getter on the `$Table` class. The output is a `Map<String, dynamic>` compatible with `Collection.fromJson()` from `package:cellar`.
-
-```dart
-const CellarCollection({String? name})
-```
-
-| Parameter | Type | Default | Purpose |
-|-----------|------|---------|---------|
-| `name` | `String?` | `null` | Override Cellar collection name. Default: uses the `@Entity(name:)` table name |
-
-Import: `import 'package:stanza/annotations.dart';` (exported alongside other annotations)
+When `@StanzaEntity(cellar: true)` is set, the generator emits a top-level `const $<name>Collection = CellarCollection(...)` constant. This is a `CellarCollection` from `package:cellar`, usable directly when opening a Cellar database.
 
 ```dart
-@Entity()
-@CellarCollection()
+@StanzaEntity(cellar: true)
 class Episode {
-  @PrimaryKey(autoIncrement: false)
+  @StanzaKey(autoIncrement: false)
   final String id;
 
-  @Field(fts: true)
+  @StanzaField(fts: true)
   final String content;
 
   final String type;
   final double importance;
 
-  @Field(defaultValue: 'false')
+  @StanzaField(defaultValue: 'false')
   final bool consolidated;
 
   final DateTime createdAt;
@@ -195,18 +185,18 @@ class Episode {
 }
 ```
 
-The generator emits on `$EpisodeTable`:
+The generator emits a top-level constant:
 
 ```dart
-Map<String, dynamic> get $cellarSchema => const {
-  'name': 'episodes',
-  'fields': [
-    {'name': 'content', 'type': 'text', 'fts': true},
-    {'name': 'type', 'type': 'text'},
-    {'name': 'importance', 'type': 'real'},
-    {'name': 'consolidated', 'type': 'bool', 'default': false},
+const $episodeCollection = CellarCollection(
+  name: 'episodes',
+  fields: [
+    CellarField(name: 'content', type: CellarFieldType.text, fts: true),
+    CellarField(name: 'type', type: CellarFieldType.text),
+    CellarField(name: 'importance', type: CellarFieldType.real),
+    CellarField(name: 'consolidated', type: CellarFieldType.bool, defaultValue: false),
   ],
-};
+);
 ```
 
 System fields (`id`, `created_at`, `updated_at`) are excluded — Cellar auto-manages them.
@@ -217,7 +207,7 @@ Register at startup:
 import 'package:cellar/cellar.dart';
 
 final cellar = Cellar.open('data.db', collections: [
-  Collection.fromJson($EpisodeTable().$cellarSchema),
+  $episodeCollection,
 ]);
 ```
 
@@ -226,9 +216,9 @@ final cellar = Cellar.open('data.db', collections: [
 | Dart Type | PostgreSQL Type | SQLite Type | SQLite Storage |
 |-----------|----------------|-------------|----------------|
 | `int` | `integer` | `INTEGER` | int |
-| `int` + `@PrimaryKey()` | `serial` | `INTEGER PRIMARY KEY` | int (rowid alias) |
+| `int` + `@StanzaKey()` | `serial` | `INTEGER PRIMARY KEY` | int (rowid alias) |
 | `String` | `text` | `TEXT` | String |
-| `String` + `@Field(length: n)` | `varchar(n)` | `TEXT` | String |
+| `String` + `@StanzaField(length: n)` | `varchar(n)` | `TEXT` | String |
 | `bool` | `boolean` | `INTEGER` | 0/1 |
 | `double` | `double precision` | `REAL` | double |
 | `DateTime` | `timestamptz` | `TEXT` | ISO 8601 UTC string |
@@ -239,7 +229,7 @@ SQLite type conversion is automatic — the adapter converts `bool` ↔ `int` an
 
 ## Generated Code
 
-For each `@Entity` class, the code generator produces:
+For each `@StanzaEntity` class, the code generator produces:
 
 ### Table Descriptor: `$EntityTable`
 
@@ -1466,35 +1456,35 @@ part 'models.g.dart';
 
 // --- Entity Definitions ---
 
-@Entity()
+@StanzaEntity()
 class User {
-  @PrimaryKey(autoIncrement: true)
+  @StanzaKey(autoIncrement: true)
   final int id;
 
-  @Field(length: 100, unique: true)
+  @StanzaField(length: 100, unique: true)
   final String email;
 
-  @Field(length: 50)
+  @StanzaField(length: 50)
   final String name;
 
-  @Field(defaultValue: 'now()')
+  @StanzaField(defaultValue: 'now()')
   final DateTime createdAt;
 
   const User({required this.id, required this.email, required this.name, required this.createdAt});
 }
 
-@Entity()
+@StanzaEntity()
 class Post {
-  @PrimaryKey(autoIncrement: true)
+  @StanzaKey(autoIncrement: true)
   final int id;
 
   final String title;
   final String body;
 
-  @References(User, onDelete: 'CASCADE')
+  @StanzaRef(User, onDelete: 'CASCADE')
   final int authorId;
 
-  @Field(defaultValue: 'now()')
+  @StanzaField(defaultValue: 'now()')
   final DateTime createdAt;
 
   const Post({required this.id, required this.title, required this.body, required this.authorId, required this.createdAt});
@@ -1585,7 +1575,7 @@ Stanza entities can target a [Cellar](https://github.com/kirklink/cellar)-manage
 
 ### Setup
 
-Add `@CellarCollection()` to entities (see [Annotations](#cellarcollection) above) and add Cellar as a dependency:
+Set `cellar: true` on `@StanzaEntity()` (see [Annotations](#cellar-integration-cellar-true) above) and add Cellar as a dependency:
 
 ```yaml
 dependencies:
@@ -1600,11 +1590,11 @@ dependencies:
 ```dart
 import 'package:cellar/cellar.dart';
 import 'package:stanza_sqlite/stanza_sqlite.dart';
-import 'models.dart';  // your entities with @CellarCollection
+import 'models.dart';  // your entities with @StanzaEntity(cellar: true)
 
-// 1. Open Cellar with schemas from Stanza-generated getters
+// 1. Open Cellar with Stanza-generated collection constants
 final cellar = Cellar.open('data.db', collections: [
-  Collection.fromJson($EpisodeTable().$cellarSchema),
+  $episodeCollection,
 ]);
 
 // 2. Wrap the Cellar-managed database for Stanza queries
@@ -1631,10 +1621,10 @@ cellar.close();
 
 | Path | Generator | Use Case |
 |------|-----------|----------|
-| `@CellarCollection` (Stanza) | `stanza_builder` | Stanza typed SQL queries on Cellar-managed DB (embedded only) |
+| `@StanzaEntity(cellar: true)` (Stanza) | `stanza_builder` | Stanza typed SQL queries on Cellar-managed DB (embedded only) |
 | `@CellarEntity` (Cellar) | `cellar_builder` | Standalone Cellar CRUD/filter/search with typed service (embedded + remote) |
 
-Choose `@CellarCollection` when you need Stanza's full SQL query builder (JOINs, aggregates, subqueries, FTS5). Choose `@CellarEntity` when you need Cellar's built-in CRUD/filter/search API with both embedded and remote (HTTP) access.
+Choose `@StanzaEntity(cellar: true)` when you need Stanza's full SQL query builder (JOINs, aggregates, subqueries, FTS5). Choose `@CellarEntity` when you need Cellar's built-in CRUD/filter/search API with both embedded and remote (HTTP) access.
 
 ---
 

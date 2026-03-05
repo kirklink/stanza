@@ -42,8 +42,7 @@ dart test --reporter github 2>/dev/null
 | `lib/stanza.dart` | Main barrel export — everything |
 | `lib/schema.dart` | Schema-only barrel — for migration scripts |
 | `lib/annotations.dart` | Annotation-only barrel — for entity files |
-| `lib/src/annotations.dart` | `Entity`, `Field` (incl. `fts`), `PrimaryKey`, `References`, `Database` |
-| `lib/src/cellar_annotations.dart` | `CellarCollection` annotation (opt-in Cellar schema generation) |
+| `lib/src/annotations.dart` | `StanzaEntity`, `StanzaField` (incl. `fts`), `StanzaKey`, `StanzaRef`, `StanzaDatabase` |
 | `lib/src/column.dart` | `Column<T>` hierarchy: Int, String, Bool, Double, DateTime columns |
 | `lib/src/database.dart` | `DatabaseAdapter`, `SessionAdapter` abstract interfaces, `AdapterSessionBlock` typedef |
 | `lib/src/expression.dart` | Sealed `Expression` tree (19 subtypes incl. `Fts5Match`) + `AggregateExpression`, `CountAll` |
@@ -95,9 +94,9 @@ dart test --reporter github 2>/dev/null
 | File | Purpose |
 |------|---------|
 | `lib/builder.dart` | `stanzaBuilder()` entry point — `SharedPartBuilder` |
-| `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema` |
+| `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema`, `$<name>Collection` |
 | `lib/src/type_mapping.dart` | `columnClassForDartType()`, `postgresTypeForDartType()`, `serialTypeForDartType()` |
-| `lib/src/cellar_type_mapping.dart` | `cellarFieldTypeName()` — Dart type → Cellar FieldType name mapping |
+| `lib/src/cellar_type_mapping.dart` | `cellarFieldTypeName()` — Dart type → `CellarFieldType` name mapping |
 | `build.yaml` | Builder config: `stanza_entity`, `build_to: cache`, `combining_builder` |
 
 ### stanza/stanza/example/ (test harness)
@@ -106,10 +105,10 @@ dart test --reporter github 2>/dev/null
 |------|---------|
 | `lib/src/models.dart` | `User` and `Post` entities with annotations |
 | `lib/src/models.g.dart` | Generated code: `$UserTable`, `$PostTable`, companions |
-| `lib/src/cellar_models.dart` | `Episode` and `Metric` entities with `@CellarCollection` |
-| `lib/src/cellar_models.g.dart` | Generated code: `$cellarSchema` getters on `$Table` classes |
+| `lib/src/cellar_models.dart` | `Episode` and `Metric` entities with `@StanzaEntity(cellar: true)` |
+| `lib/src/cellar_models.g.dart` | Generated code: top-level `$<name>Collection` constants |
 | `test/models_test.dart` | 20 tests against generated code |
-| `test/cellar_models_test.dart` | 19 tests — `$cellarSchema` output, `Collection.fromJson()` round-trip |
+| `test/cellar_models_test.dart` | 19 tests — `$<name>Collection` output, `CellarCollection` round-trip |
 
 ## Architecture
 
@@ -176,27 +175,27 @@ FTS5 DDL is manual (not auto-diffed) — virtual tables can't be diffed/altered 
 
 ### Code Generator
 
-`EntityGenerator extends GeneratorForAnnotation<Entity>` processes annotated classes and emits:
+`EntityGenerator extends GeneratorForAnnotation<StanzaEntity>` processes annotated classes and emits:
 1. `$EntityTable extends TableDescriptor<Entity>` — typed columns, `fromRow()`, `$schema`
 2. `EntityInsert` — required fields minus auto-increment PK; optional fields with DB defaults
 3. `EntityUpdate` — all writable fields optional; `toRow()` omits nulls
 4. `EntityCopyWith` extension — `copyWith()` on the entity
-5. *(conditional)* `$cellarSchema` getter on `$Table` — emitted when class has `@CellarCollection`
+5. *(conditional)* top-level `const $<name>Collection = CellarCollection(...)` — emitted when `@StanzaEntity(cellar: true)`
 
 Field naming: Dart camelCase → snake_case column names (via `recase` package). Table naming: class name → pluralized snake_case.
 
-### Cellar Integration (`@CellarCollection`)
+### Cellar Integration (`@StanzaEntity(cellar: true)`)
 
-When an entity has `@CellarCollection()`, the generator emits a `Map<String, dynamic> get $cellarSchema` getter on the `$Table` class. This map is compatible with `Collection.fromJson()` in `package:cellar`. Consumers register Cellar collections from Stanza-generated schemas at startup.
+When an entity has `@StanzaEntity(cellar: true)`, the generator emits a top-level `const $<name>Collection = CellarCollection(...)` constant. This constant is directly usable as a `CellarCollection` from `package:cellar`. Consumers pass these constants when opening a Cellar database at startup.
 
 Key behaviors:
 - System fields (`id`, `created_at`, `updated_at`) are excluded from the `fields` list (Cellar auto-manages them)
-- `@Field(fts: true)` propagates to the Cellar schema for FTS5 indexing
+- `@StanzaField(fts: true)` propagates to the Cellar schema for FTS5 indexing
 - Nullable fields, defaults, and unique constraints are mapped to Cellar equivalents
 - Type mapping uses `cellarFieldTypeName()` from `cellar_type_mapping.dart`
-- Collection name defaults to the `@Entity(name:)` table name; overridable via `@CellarCollection(name:)`
+- Collection name defaults to the `@StanzaEntity(name:)` table name
 
-This is complementary to (not a replacement for) `cellar_builder`, which generates standalone Cellar-only code gen with typed CRUD services. The `@CellarCollection` path is for apps using Stanza's typed SQL query builder against a Cellar-managed database.
+This is complementary to (not a replacement for) `cellar_builder`, which generates standalone Cellar-only code gen with typed CRUD services. The `cellar: true` path is for apps using Stanza's typed SQL query builder against a Cellar-managed database.
 
 ### StanzaSqlite.fromDatabase()
 

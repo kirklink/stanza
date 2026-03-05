@@ -7,4 +7,3 @@
 library;
 
 export 'src/annotations.dart';
-export 'src/cellar_annotations.dart';

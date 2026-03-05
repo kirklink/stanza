@@ -1,3 +1,4 @@
+import 'package:cellar/cellar.dart';
 import 'package:stanza/stanza.dart';
 
 part 'cellar_models.g.dart';
@@ -5,15 +6,14 @@ part 'cellar_models.g.dart';
 /// A Cellar-targeted entity with String ULID primary key.
 ///
 /// Demonstrates dual-backend support: the same entity generates both
-/// a Stanza `$Table` (for typed queries) and a `$cellarSchema` map
-/// (for Cellar collection registration via `Collection.fromJson()`).
-@Entity()
-@CellarCollection()
+/// a Stanza `$Table` (for typed queries) and a `CellarCollection`
+/// constant (for Cellar collection registration).
+@StanzaEntity(cellar: true)
 class Episode {
-  @PrimaryKey(autoIncrement: false)
+  @StanzaKey(autoIncrement: false)
   final String id;
 
-  @Field(fts: true)
+  @StanzaField(fts: true)
   final String content;
 
   final String type;
@@ -38,13 +38,12 @@ class Episode {
 }
 
 /// An entity with nullable fields, unique constraint, and custom collection name.
-@Entity()
-@CellarCollection(name: 'app_settings')
+@StanzaEntity(name: 'app_settings', cellar: true)
 class Setting {
-  @PrimaryKey(autoIncrement: false)
+  @StanzaKey(autoIncrement: false)
   final String id;
 
-  @Field(unique: true)
+  @StanzaField(unique: true)
   final String key;
 
   final String? value;

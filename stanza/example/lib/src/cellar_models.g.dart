@@ -84,17 +84,6 @@ class $EpisodeTable extends TableDescriptor<Episode> {
               columns: ['id']),
         ],
       );
-
-  /// Cellar collection schema for `Collection.fromJson()`.
-  Map<String, dynamic> get $cellarSchema => const {
-        'name': 'episodes',
-        'fields': [
-          {'name': 'content', 'type': 'text', 'fts': true},
-          {'name': 'type', 'type': 'text'},
-          {'name': 'importance', 'type': 'real'},
-          {'name': 'consolidated', 'type': 'bool'},
-        ],
-      };
 }
 
 class EpisodeInsert {
@@ -175,15 +164,28 @@ extension EpisodeCopyWith on Episode {
       );
 }
 
+/// Cellar collection schema for `Episode`.
+///
+/// Pass to `Cellar.open(collections: [...])` for table management.
+const $episodeCollection = CellarCollection(
+  name: 'episodes',
+  fields: [
+    CellarField.text('content', fts: true),
+    CellarField.text('type'),
+    CellarField.real('importance'),
+    CellarField.bool('consolidated'),
+  ],
+);
+
 class $SettingTable extends TableDescriptor<Setting> {
   @override
-  String get tableName => 'settings';
+  String get tableName => 'app_settings';
 
-  final id = const StringColumn('id', 'settings');
-  final key = const StringColumn('key', 'settings');
-  final value = const StringColumn('value', 'settings');
-  final createdAt = const DateTimeColumn('created_at', 'settings');
-  final updatedAt = const DateTimeColumn('updated_at', 'settings');
+  final id = const StringColumn('id', 'app_settings');
+  final key = const StringColumn('key', 'app_settings');
+  final value = const StringColumn('value', 'app_settings');
+  final createdAt = const DateTimeColumn('created_at', 'app_settings');
+  final updatedAt = const DateTimeColumn('updated_at', 'app_settings');
 
   @override
   List<Column> get columns => [id, key, value, createdAt, updatedAt];
@@ -202,7 +204,7 @@ class $SettingTable extends TableDescriptor<Setting> {
 
   @override
   SchemaTable get $schema => SchemaTable(
-        name: 'settings',
+        name: 'app_settings',
         columns: [
           SchemaColumn(
               name: 'id',
@@ -231,30 +233,15 @@ class $SettingTable extends TableDescriptor<Setting> {
         ],
         constraints: [
           SchemaConstraint(
-              name: 'settings_pkey',
+              name: 'app_settings_pkey',
               kind: ConstraintKind.primaryKey,
               columns: ['id']),
           SchemaConstraint(
-              name: 'settings_key_key',
+              name: 'app_settings_key_key',
               kind: ConstraintKind.unique,
               columns: ['key']),
         ],
       );
-
-  /// Cellar collection schema for `Collection.fromJson()`.
-  Map<String, dynamic> get $cellarSchema => const {
-        'name': 'app_settings',
-        'fields': [
-          {'name': 'key', 'type': 'text'},
-          {'name': 'value', 'type': 'text', 'nullable': true},
-        ],
-        'indexes': [
-          {
-            'type': 'unique',
-            'fields': ['key']
-          },
-        ],
-      };
 }
 
 class SettingInsert {
@@ -318,3 +305,17 @@ extension SettingCopyWith on Setting {
         updatedAt: updatedAt ?? this.updatedAt,
       );
 }
+
+/// Cellar collection schema for `Setting`.
+///
+/// Pass to `Cellar.open(collections: [...])` for table management.
+const $settingCollection = CellarCollection(
+  name: 'app_settings',
+  fields: [
+    CellarField.text('key'),
+    CellarField.text('value', nullable: true),
+  ],
+  indexes: [
+    CellarIndex(['key']),
+  ],
+);

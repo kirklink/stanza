@@ -6,7 +6,6 @@
 library;
 
 export 'src/annotations.dart';
-export 'src/cellar_annotations.dart';
 export 'src/column.dart';
 export 'src/database.dart';
 export 'src/delete_query.dart';

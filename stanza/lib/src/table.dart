@@ -3,7 +3,7 @@ import 'schema/schema_table.dart';
 
 /// Base class for generated table descriptors.
 ///
-/// Each `@Entity` class gets a corresponding `$<Entity>Table` that extends this.
+/// Each `@StanzaEntity` class gets a corresponding `$<Entity>Table` that extends this.
 /// The table descriptor provides typed column references, row mapping, and schema metadata.
 ///
 /// Example generated code:

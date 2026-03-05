@@ -1,6 +1,6 @@
 ---
 name: stanza-guide
-description: "Stanza consumer API reference — database-agnostic ORM with code generation. TRIGGER when: writing database queries, defining @Entity/@Field/@PrimaryKey/@References models, using SelectQuery/InsertQuery/UpdateQuery/DeleteQuery, connecting via StanzaPostgres or StanzaSqlite, running schema migrations, using full-text search (tsvector/FTS5), or configuring stanza_builder code gen."
+description: "Stanza consumer API reference — database-agnostic ORM with code generation. TRIGGER when: writing database queries, defining @StanzaEntity/@StanzaField/@StanzaKey/@StanzaRef models, using SelectQuery/InsertQuery/UpdateQuery/DeleteQuery, connecting via StanzaPostgres or StanzaSqlite, running schema migrations, using full-text search (tsvector/FTS5), or configuring stanza_builder code gen."
 ---
 
 # Stanza — Consumer Guide
@@ -19,7 +19,7 @@ Full reference in [guide.md](guide.md). Key sections:
 
 - **Setup** — pubspec dependencies for each adapter
 - **Quick Start** — entity definition through query execution
-- **Annotations** — @Entity, @Field, @PrimaryKey, @References
+- **Annotations** — @StanzaEntity, @StanzaField, @StanzaKey, @StanzaRef
 - **Generated Code** — table descriptors, companions, copyWith
 - **Columns & Expressions** — typed column API, expression composition
 - **SELECT/INSERT/UPDATE/DELETE** — query builder APIs
