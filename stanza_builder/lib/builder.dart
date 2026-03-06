@@ -6,6 +6,7 @@ library;
 import 'package:build/build.dart';
 import 'package:source_gen/source_gen.dart';
 
+import 'src/cellar_collection_builder.dart';
 import 'src/entity_generator.dart';
 
 /// Creates the Stanza entity builder.
@@ -14,3 +15,11 @@ import 'src/entity_generator.dart';
 /// insert/update companions, and `copyWith` extensions.
 Builder stanzaBuilder(BuilderOptions options) =>
     SharedPartBuilder([EntityGenerator()], 'stanza');
+
+/// Creates the Cellar collection builder.
+///
+/// Scans for `@StanzaEntity(cellar: true)` and generates standalone
+/// `.cellar.dart` files with `CellarCollection` constants and an
+/// auto-injected `import 'package:cellar/cellar.dart'`.
+Builder cellarCollectionBuilder(BuilderOptions options) =>
+    CellarCollectionBuilder();

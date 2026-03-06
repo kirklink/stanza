@@ -105,7 +105,7 @@ const StanzaEntity({String? name, bool cellar = false})
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
 | `name` | `String?` | `null` | Override table name. Default: pluralized snake_case of class name (`User` → `users`) |
-| `cellar` | `bool` | `false` | When `true`, generates a top-level `const $<name>Collection = CellarCollection(...)` constant for use with `package:cellar` |
+| `cellar` | `bool` | `false` | When `true`, generates a standalone `models.cellar.dart` file containing `const $<name>Collection = CellarCollection(...)` constants for use with `package:cellar` |
 
 ### @StanzaKey
 
@@ -161,9 +161,17 @@ const StanzaDatabase({required List<Type> entities})
 
 ### Cellar Integration (`cellar: true`)
 
-When `@StanzaEntity(cellar: true)` is set, the generator emits a top-level `const $<name>Collection = CellarCollection(...)` constant. This is a `CellarCollection` from `package:cellar`, usable directly when opening a Cellar database.
+When `@StanzaEntity(cellar: true)` is set, the generator emits TWO files:
+- `models.g.dart` — standard Stanza artifacts (`$Table`, companions, `$schema`) as a part file
+- `models.cellar.dart` — standalone file containing `const $<name>Collection = CellarCollection(...)` constants
+
+The `.cellar.dart` file is a standalone file (not a part file) with its own `import 'package:cellar/cellar.dart'`. The model file does NOT need to import cellar — only `import 'package:stanza/stanza.dart'` and `part 'models.g.dart'` are needed.
 
 ```dart
+import 'package:stanza/stanza.dart';
+
+part 'models.g.dart';
+
 @StanzaEntity(cellar: true)
 class Episode {
   @StanzaKey(autoIncrement: false)
@@ -185,9 +193,12 @@ class Episode {
 }
 ```
 
-The generator emits a top-level constant:
+The generated `models.cellar.dart` file contains:
 
 ```dart
+// GENERATED CODE — DO NOT MODIFY BY HAND
+import 'package:cellar/cellar.dart';
+
 const $episodeCollection = CellarCollection(
   name: 'episodes',
   fields: [
@@ -201,10 +212,11 @@ const $episodeCollection = CellarCollection(
 
 System fields (`id`, `created_at`, `updated_at`) are excluded — Cellar auto-manages them.
 
-Register at startup:
+Import the `.cellar.dart` file where you register collections:
 
 ```dart
 import 'package:cellar/cellar.dart';
+import 'models.cellar.dart';  // generated cellar collection constants
 
 final cellar = Cellar.open('data.db', collections: [
   $episodeCollection,
@@ -1590,7 +1602,8 @@ dependencies:
 ```dart
 import 'package:cellar/cellar.dart';
 import 'package:stanza_sqlite/stanza_sqlite.dart';
-import 'models.dart';  // your entities with @StanzaEntity(cellar: true)
+import 'models.dart';         // your entities with @StanzaEntity(cellar: true)
+import 'models.cellar.dart';  // generated cellar collection constants
 
 // 1. Open Cellar with Stanza-generated collection constants
 final cellar = Cellar.open('data.db', collections: [

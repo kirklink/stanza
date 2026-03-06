@@ -1,5 +1,6 @@
 import 'package:cellar/cellar.dart';
 import 'package:stanza/stanza.dart';
+import 'package:stanza_example/src/cellar_models.cellar.dart';
 import 'package:stanza_example/src/cellar_models.dart';
 import 'package:test/test.dart';
 

@@ -6,7 +6,6 @@ import 'package:recase/recase.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:stanza/annotations.dart';
 
-import 'cellar_type_mapping.dart';
 import 'type_mapping.dart';
 
 const _fieldChecker =
@@ -73,12 +72,6 @@ class EntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
     _writeInsertCompanion(buf, className, fields);
     _writeUpdateCompanion(buf, className, fields);
     _writeCopyWith(buf, className, fields);
-
-    // Emit Cellar collection constant when cellar: true
-    if (entityAnnotation.cellar) {
-      buf.writeln();
-      _writeCellarCollection(buf, className, tableName, fields);
-    }
 
     return buf.toString();
   }
@@ -429,84 +422,6 @@ class EntityGenerator extends GeneratorForAnnotation<StanzaEntity> {
 
     buf.writeln('    ],');
     buf.writeln('  );');
-  }
-
-  // -- Cellar collection generation --
-
-  /// Cellar system fields — excluded from the generated CellarCollection.fields.
-  static const _cellarSystemFields = {'id', 'created_at', 'updated_at'};
-
-  void _writeCellarCollection(
-    StringBuffer buf,
-    String className,
-    String tableName,
-    List<_ResolvedField> fields,
-  ) {
-    final collectionName = tableName;
-    final varName = '\$${ReCase(className).camelCase}Collection';
-
-    // Filter out Cellar system fields
-    final userFields = fields
-        .where((f) => !_cellarSystemFields.contains(f.columnName))
-        .toList();
-
-    // Collect single-column unique constraints for indexes
-    final uniqueFields = userFields.where((f) => f.isUnique).toList();
-
-    buf.writeln('/// Cellar collection schema for `$className`.');
-    buf.writeln('///');
-    buf.writeln('/// Pass to `Cellar.open(collections: [...])` for table management.');
-    buf.writeln('const $varName = CellarCollection(');
-    buf.writeln("  name: '$collectionName',");
-    buf.writeln('  fields: [');
-
-    for (final field in userFields) {
-      final constructor = cellarFieldConstructor(field.dartType);
-      buf.write("    $constructor('${field.columnName}'");
-      if (field.fts && field.dartType == 'String') {
-        buf.write(', fts: true');
-      }
-      if (field.isNullable) {
-        buf.write(', nullable: true');
-      }
-      if (field.defaultValue != null) {
-        final dv = field.defaultValue!;
-        if (_isCellarLiteralDefault(dv, field.dartType)) {
-          buf.write(', defaultValue: $dv');
-        }
-      }
-      buf.writeln('),');
-    }
-
-    buf.writeln('  ],');
-
-    if (uniqueFields.isNotEmpty) {
-      buf.writeln('  indexes: [');
-      for (final field in uniqueFields) {
-        buf.writeln("    CellarIndex(['${field.columnName}']),");
-      }
-      buf.writeln('  ],');
-    }
-
-    buf.writeln(');');
-  }
-
-  /// Returns true if the default value is a Dart literal suitable for Cellar,
-  /// not a SQL expression like `'now()'`.
-  bool _isCellarLiteralDefault(String value, String dartType) {
-    // Numeric literals
-    if (dartType == 'int' || dartType == 'double') {
-      return num.tryParse(value) != null;
-    }
-    // Boolean literals
-    if (dartType == 'bool') {
-      return value == 'true' || value == 'false';
-    }
-    // String literals (quoted with single quotes in SQL, e.g. "'active'")
-    if (dartType == 'String' && value.startsWith("'") && value.endsWith("'")) {
-      return true;
-    }
-    return false;
   }
 
   String _pgTypeForField(_ResolvedField field) {

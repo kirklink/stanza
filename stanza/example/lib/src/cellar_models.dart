@@ -1,4 +1,3 @@
-import 'package:cellar/cellar.dart';
 import 'package:stanza/stanza.dart';
 
 part 'cellar_models.g.dart';

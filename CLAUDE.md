@@ -93,11 +93,12 @@ dart test --reporter github 2>/dev/null
 
 | File | Purpose |
 |------|---------|
-| `lib/builder.dart` | `stanzaBuilder()` entry point — `SharedPartBuilder` |
-| `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema`, `$<name>Collection` |
+| `lib/builder.dart` | `stanzaBuilder()` and `cellarCollectionBuilder()` entry points — `SharedPartBuilder` + standalone builder |
+| `lib/src/entity_generator.dart` | `EntityGenerator` — generates `$Table`, companions, copyWith, `$schema` |
+| `lib/src/cellar_collection_builder.dart` | `CellarCollectionBuilder` — generates standalone `.cellar.dart` file with `$<name>Collection` constants |
 | `lib/src/type_mapping.dart` | `columnClassForDartType()`, `postgresTypeForDartType()`, `serialTypeForDartType()` |
-| `lib/src/cellar_type_mapping.dart` | `cellarFieldTypeName()` — Dart type → `CellarFieldType` name mapping |
-| `build.yaml` | Builder config: `stanza_entity`, `build_to: cache`, `combining_builder` |
+| `lib/src/cellar_type_mapping.dart` | `cellarFieldConstructor()` — Dart type → `CellarFieldType` name mapping |
+| `build.yaml` | Builder config: `stanza_entity` (part file), `stanza_cellar` (standalone `.cellar.dart`), `build_to: cache`, `combining_builder` |
 
 ### stanza/stanza/example/ (test harness)
 
@@ -106,9 +107,10 @@ dart test --reporter github 2>/dev/null
 | `lib/src/models.dart` | `User` and `Post` entities with annotations |
 | `lib/src/models.g.dart` | Generated code: `$UserTable`, `$PostTable`, companions |
 | `lib/src/cellar_models.dart` | `Episode` and `Metric` entities with `@StanzaEntity(cellar: true)` |
-| `lib/src/cellar_models.g.dart` | Generated code: top-level `$<name>Collection` constants |
+| `lib/src/cellar_models.g.dart` | Generated code: `$Table`, companions (stanza artifacts) |
+| `lib/src/cellar_models.cellar.dart` | Generated code: standalone `$<name>Collection` constants (cellar artifacts) |
 | `test/models_test.dart` | 20 tests against generated code |
-| `test/cellar_models_test.dart` | 19 tests — `$<name>Collection` output, `CellarCollection` round-trip |
+| `test/cellar_models_test.dart` | 19 tests — `$<name>Collection` output from `.cellar.dart`, `CellarCollection` round-trip |
 
 ## Architecture
 
@@ -175,24 +177,29 @@ FTS5 DDL is manual (not auto-diffed) — virtual tables can't be diffed/altered 
 
 ### Code Generator
 
-`EntityGenerator extends GeneratorForAnnotation<StanzaEntity>` processes annotated classes and emits:
+`EntityGenerator extends GeneratorForAnnotation<StanzaEntity>` processes annotated classes and emits (into the `.g.dart` part file):
 1. `$EntityTable extends TableDescriptor<Entity>` — typed columns, `fromRow()`, `$schema`
 2. `EntityInsert` — required fields minus auto-increment PK; optional fields with DB defaults
 3. `EntityUpdate` — all writable fields optional; `toRow()` omits nulls
 4. `EntityCopyWith` extension — `copyWith()` on the entity
-5. *(conditional)* top-level `const $<name>Collection = CellarCollection(...)` — emitted when `@StanzaEntity(cellar: true)`
+
+A separate `CellarCollectionBuilder` emits a standalone `.cellar.dart` file (not a part file) when any entity in the source file has `@StanzaEntity(cellar: true)`. This file contains `const $<name>Collection = CellarCollection(...)` constants with its own `import 'package:cellar/cellar.dart'`.
 
 Field naming: Dart camelCase → snake_case column names (via `recase` package). Table naming: class name → pluralized snake_case.
 
 ### Cellar Integration (`@StanzaEntity(cellar: true)`)
 
-When an entity has `@StanzaEntity(cellar: true)`, the generator emits a top-level `const $<name>Collection = CellarCollection(...)` constant. This constant is directly usable as a `CellarCollection` from `package:cellar`. Consumers pass these constants when opening a Cellar database at startup.
+When an entity has `@StanzaEntity(cellar: true)`, the build generates TWO output files:
+- `models.g.dart` — standard Stanza artifacts (part file, same as without `cellar: true`)
+- `models.cellar.dart` — standalone file with `const $<name>Collection = CellarCollection(...)` constants
+
+The `.cellar.dart` file is a standalone file (not a part file) with its own `import 'package:cellar/cellar.dart'`. The consumer's model file does NOT need to import cellar — only `import 'package:stanza/stanza.dart'` and `part 'models.g.dart'` are needed. The consumer imports the `.cellar.dart` file where they actually use the collection constants (e.g., when calling `Cellar.open()`).
 
 Key behaviors:
 - System fields (`id`, `created_at`, `updated_at`) are excluded from the `fields` list (Cellar auto-manages them)
 - `@StanzaField(fts: true)` propagates to the Cellar schema for FTS5 indexing
 - Nullable fields, defaults, and unique constraints are mapped to Cellar equivalents
-- Type mapping uses `cellarFieldTypeName()` from `cellar_type_mapping.dart`
+- Type mapping uses `cellarFieldConstructor()` from `cellar_type_mapping.dart`
 - Collection name defaults to the `@StanzaEntity(name:)` table name
 
 This is complementary to (not a replacement for) `cellar_builder`, which generates standalone Cellar-only code gen with typed CRUD services. The `cellar: true` path is for apps using Stanza's typed SQL query builder against a Cellar-managed database.

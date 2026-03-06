@@ -3,6 +3,8 @@ targets:
     builders:
       stanza_builder|stanza_entity:
         enabled: true
+      stanza_builder|stanza_cellar:
+        enabled: true
 
 builders:
   stanza_entity:
@@ -13,3 +15,11 @@ builders:
     auto_apply: dependents
     build_to: cache
     applies_builders: ["source_gen|combining_builder"]
+
+  stanza_cellar:
+    target: ":stanza_builder"
+    import: "package:stanza_builder/builder.dart"
+    builder_factories: ["cellarCollectionBuilder"]
+    build_extensions: {".dart": [".cellar.dart"]}
+    auto_apply: dependents
+    build_to: source
